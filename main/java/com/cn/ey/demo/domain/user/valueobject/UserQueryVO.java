@@ -1,9 +1,9 @@
-package com.cn.ey.demo.dto;
+package com.cn.ey.demo.domain.user.valueobject;
 
 import lombok.Data;
 
 @Data
-public class UserQuery {
+public class UserQueryVO {
     private Long id;
 
     private String name;

@@ -1,11 +1,11 @@
-package com.cn.ey.demo.annotation;
+package com.cn.ey.demo.support.annotation;
 
 import java.lang.annotation.*;
 
-@Target({ElementType.TYPE, ElementType.PARAMETER})
+@Target({ElementType.FIELD})
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
-public @interface JsonPackEntity {
+public @interface JsonPackField {
     String value() default "";
 
     boolean disable() default false;

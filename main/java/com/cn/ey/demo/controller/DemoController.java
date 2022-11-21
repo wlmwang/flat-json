@@ -1,15 +1,16 @@
 package com.cn.ey.demo.controller;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
-import com.baomidou.mybatisplus.core.toolkit.StringUtils;
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.cn.ey.demo.converter.JsonPackHttpMessageConverter;
-import com.cn.ey.demo.dto.UserQuery;
-import com.cn.ey.demo.entity.User;
-import com.cn.ey.demo.service.UserService;
+import com.cn.ey.demo.controller.dto.UserDto;
+import com.cn.ey.demo.domain.user.entity.UserBO;
+import com.cn.ey.demo.domain.user.service.UserDomainService;
+import com.cn.ey.demo.domain.user.valueobject.UserQueryVO;
+import com.cn.ey.demo.controller.dto.UserQuery;
+import com.cn.ey.demo.support.converter.JsonPackHttpMessageConverter;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.propertyeditors.PropertiesEditor;
+import org.springframework.util.CollectionUtils;
 import org.springframework.web.bind.WebDataBinder;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,116 +19,132 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @RestController
 @RequestMapping("/demo")
 public class DemoController {
 
     @Autowired
-    private UserService userService;
+    private UserDomainService service;
 
     @PostMapping("/search")
-    public List<User> search(@RequestBody UserQuery userQuery) {
-        System.out.printf("查询参数：" + userQuery);
+    public List<UserDto> search(@RequestBody UserQuery userQuery) {
 
-        LambdaQueryWrapper<User> queryWrapper = Wrappers.lambdaQuery(User.class);
-        // queryWrapper.select(User::getAge);
-        queryWrapper.eq(!Objects.isNull(userQuery.getId()), User::getId, userQuery.getId());
-        queryWrapper.like(!Objects.isNull(userQuery.getName()), User::getName, userQuery.getName());
+        log.info("查询参数：{}", userQuery);
 
-        // 字段：extension->>'$.age' = {0}
-        // 数组：JSON_CONTAINS(extension, JSON_OBJECT('family', {0}))
-        queryWrapper.apply(!Objects.isNull(userQuery.getAge()), "extension->>'$.age' is null");
-        queryWrapper = queryWrapper.or(!Objects.isNull(userQuery.getAge()) || StringUtils.isNotBlank(userQuery.getFamily()), qw -> {
-            qw.apply(!Objects.isNull(userQuery.getAge()), "extension->>'$.age' = {0}", userQuery.getAge());
-            qw.apply(StringUtils.isNotBlank(userQuery.getFamily()), "JSON_CONTAINS(extension, JSON_OBJECT('family', {0}))", userQuery.getFamily());
-            // queryWrapper.apply(StringUtils.isNotBlank(userDto.getFamily()), "extension ->> '$.family[0]' LIKE CONCAT('%',{0},'%')", userDto.getFamily());
-        });
-        queryWrapper.last("ORDER BY extension->>'$.age' DESC");
+        UserQueryVO vo = new UserQueryVO();
+        BeanUtils.copyProperties(userQuery, vo);
+        List<UserBO> userBOList = service.search(vo);
+        if (CollectionUtils.isEmpty(userBOList)) {
+            return null;
+        }
 
-        List<User> list = userService.list(queryWrapper);
+        log.info("查询结果：[{}]", userBOList);
 
-        System.out.printf("搜索数据" + list);
-
-        return list;
+        return userBOList.stream().map(bo -> {
+            UserDto dto = new UserDto();
+            BeanUtils.copyProperties(bo, dto);
+            return dto;
+        }).collect(Collectors.toList());
     }
 
     @PostMapping("/add")
-    public User add(@RequestBody User user) {
-        System.out.printf("参数：" + user);
+    public UserDto add(@RequestBody UserDto userDto) {
+
+        log.info("接收参数：{}", userDto);
 
         // 添加
-        userService.save(user);
+        UserBO bo = new UserBO();
+        BeanUtils.copyProperties(userDto, bo);
+        UserBO userBO = service.save(bo);
 
-        // 查询
-        LambdaQueryWrapper<User> queryWrapper = Wrappers.lambdaQuery(User.class).eq(User::getId, user.getId());
-        User one = userService.getOne(queryWrapper);
+        log.info("操作结果：{}", userBO);
 
-        return one;
+        UserDto dto = new UserDto();
+        BeanUtils.copyProperties(userBO, dto);
+        return dto;
     }
 
     @PostMapping("/batch")
-    public List<User> batch(@RequestBody List<User> users) {
-        System.out.printf("list 接收参数" + users);
+    public List<UserDto> batch(@RequestBody List<UserDto> userDtoList) {
+        log.info("接收参数：[{}]", userDtoList);
 
-        userService.saveBatch(users);
+        List<UserBO> userBOList = userDtoList.stream().map(dto -> {
+            UserBO bo = new UserBO();
+            BeanUtils.copyProperties(dto, bo);
+            return bo;
+        }).collect(Collectors.toList());
 
-        List<Long> idList = users.stream().map(User::getId).collect(Collectors.toList());
-        List<User> userList = userService.list(Wrappers.<User>lambdaQuery().in(CollectionUtils.isNotEmpty(idList), User::getId, idList));
-        return userList;
+        List<UserBO> boList = service.saveBatch(userBOList);
+        if (CollectionUtils.isEmpty(boList)) {
+            return null;
+        }
+
+        log.info("操作结果：[{}]", boList);
+
+        return boList.stream().map(bo -> {
+            UserDto dto = new UserDto();
+            BeanUtils.copyProperties(bo, dto);
+            return dto;
+        }).toList();
     }
 
     @PostMapping("/mix/{id}")
-    public User mix(@PathVariable("id") String id, @RequestBody User user) {
-        System.out.printf("id=" + id);
-        return user;
+    public UserDto mix(@PathVariable("id") String id, @RequestBody UserDto userDto) {
+        log.info("接收参数：{}, [{}]", id, userDto);
+
+        return userDto;
     }
 
     @PostMapping("/all")
-    public Map<String, Object> all(@RequestParam Map<String, Object> user) {
-        return user;
-    }
+    public Map<String, Object> all(@RequestParam Map<String, Object> objectMap) {
+        log.info("接收参数：{}", objectMap);
 
-    @PostMapping("/form")
-    public User form(User user) {
-        return user;
+        return objectMap;
     }
 
     @PostMapping("/with-binder")
-    public User withBinder(@RequestParam("user") User user, @RequestParam("name") String name) {
-        System.out.printf("name=" + name);
-        return user;
+    public UserDto withBinder(@RequestParam("name") String name, @RequestParam(value = "extension", required = false) UserDto userDto) {
+        log.info("接收参数：{}, [{}]", name, userDto);
+
+        return userDto;
     }
 
     @PostMapping("/str")
     public String str(@RequestBody String str) {
+        log.info("接收参数：{}", str);
+
         return str;
     }
 
-    @PostMapping("/noop")
-    public String noop() {
-        return "noop";
-    }
-
-
     @InitBinder
     protected void initBinder(WebDataBinder binder) {
-        binder.registerCustomEditor(User.class, new UserConverter());
+        binder.registerCustomEditor(UserDto.class, new UserConverter());
     }
     public static class UserConverter extends PropertiesEditor {
         @Override
         public void setAsText(String text) throws IllegalArgumentException {
-            User user;
+            UserDto UserDto;
             try {
                 assert text != null;
-                user = JsonPackHttpMessageConverter.converter(User.class, DemoController.class, text.getBytes(StandardCharsets.UTF_8));
+                UserDto = JsonPackHttpMessageConverter.converter(UserDto.class, DemoController.class, text.getBytes(StandardCharsets.UTF_8));
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
-            setValue(user);
+            setValue(UserDto);
         }
         @Override
         public String getAsText() {
             return getValue().toString();
         }
+    }
+
+
+    // todo 键值对
+    @PostMapping("/form")
+    public UserDto form(UserDto userDto) {
+        log.info("接收参数：{}", userDto);
+
+        return userDto;
     }
 }

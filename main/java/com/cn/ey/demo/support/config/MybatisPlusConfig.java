@@ -1,4 +1,4 @@
-package com.cn.ey.demo.config;
+package com.cn.ey.demo.support.config;
 
 import com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor;
 import org.springframework.context.annotation.Bean;

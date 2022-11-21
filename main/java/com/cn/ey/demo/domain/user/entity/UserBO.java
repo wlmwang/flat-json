@@ -1,20 +1,16 @@
-package com.cn.ey.demo.entity;
+package com.cn.ey.demo.domain.user.entity;
 
-import com.baomidou.mybatisplus.annotation.FieldStrategy;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
-import com.cn.ey.demo.annotation.JsonPackEntity;
-import com.cn.ey.demo.annotation.JsonPackField;
 import lombok.Data;
 
 import java.util.Map;
 
 @Data
 @TableName(value = "user", autoResultMap = true)
-@JsonPackEntity
-public class User {
+public class UserBO {
     @TableId(value = "id")
     private Long id;
 
@@ -24,7 +20,6 @@ public class User {
     @TableField(value = "dummy", exist = false)
     private String dummy;
 
-    @JsonPackField
     @TableField(value = "extension" , typeHandler = JacksonTypeHandler.class)
     private Map<String, Object> extension;
 

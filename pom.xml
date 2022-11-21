@@ -10,9 +10,8 @@
     </parent>
 
     <groupId>com.cn.ey.demo</groupId>
-    <artifactId>demo</artifactId>
+    <artifactId>flat-json</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>demo</name>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

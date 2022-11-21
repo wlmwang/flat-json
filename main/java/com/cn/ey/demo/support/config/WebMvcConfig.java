@@ -1,6 +1,6 @@
-package com.cn.ey.demo.config;
+package com.cn.ey.demo.support.config;
 
-import com.cn.ey.demo.converter.JsonPackHttpMessageConverter;
+import com.cn.ey.demo.support.converter.JsonPackHttpMessageConverter;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
@@ -18,7 +18,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
         ObjectMapper objectMapper = Jackson2ObjectMapperBuilder.json().build();
         SimpleModule simpleModule = new SimpleModule();
         /*
-         * todo Java中的long比Javascript中的number范围更大，这可能导致在反序列化时，部分数值在js中精度丢失
+         * todo Java中的Long比Javascript中的Number范围更大，这可能导致在反序列化时，部分数值在Javascript中精度丢失
          *  Java:
          *      Long.MIN_VALUE = -2^63 = -9223372036854775808
          *      Long.MAX_VALUE = 2^63 - 1 = 9223372036854775807
