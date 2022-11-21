@@ -2,10 +2,13 @@ package com.cn.ey.demo.support.converter;
 
 import com.cn.ey.demo.support.annotation.JsonPackEntity;
 import com.cn.ey.demo.support.annotation.JsonPackField;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import org.springframework.http.*;
 import org.springframework.http.converter.*;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
@@ -26,7 +29,7 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
     private enum OPT_ { PACK, UNPACK }
 
     public static final Charset DEFAULT_CHARSET = StandardCharsets.UTF_8;
-    private final Charset charset = DEFAULT_CHARSET;
+    private static final Charset charset = DEFAULT_CHARSET;
 
     private final List<MediaType> supportedMediaTypes = new ArrayList<>();
 
@@ -37,6 +40,7 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
     private final Map<Class<?>, List<Field>> cachedNoneJsonPackField = new ConcurrentHashMap<>();
 
     public JsonPackHttpMessageConverter() {
+        // ObjectMapper objectMapper = Jackson2ObjectMapperBuilder.json().build();
         init();
     }
     public JsonPackHttpMessageConverter(ObjectMapper objectMapper) {
@@ -47,6 +51,21 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
     private void init() {
         this.supportedMediaTypes.add(MediaType.APPLICATION_JSON);
         this.supportedMediaTypes.add(MediaType.APPLICATION_FORM_URLENCODED);
+
+        /*
+         * TODO Java中的Long比Javascript中的Number范围更大，这可能导致在反序列化时，部分数值在Javascript中精度丢失
+         *  Java:
+         *      Long.MIN_VALUE = -2^63 = -9223372036854775808
+         *      Long.MAX_VALUE = 2^63 - 1 = 9223372036854775807
+         *  Javascript:
+         *      Number.MAX_SAFE_INTEGER = 2^53 - 1 => 9007199254740991
+         *      Number.MIN_SAFE_INTEGER = -(2^53 - 1) => -9007199254740991
+         */
+        SimpleModule simpleModule = new SimpleModule();
+        simpleModule.addSerializer(Long.class, ToStringSerializer.instance);
+        simpleModule.addSerializer(Long.TYPE, ToStringSerializer.instance);
+        defaultObjectMapper.registerModule(simpleModule);
+        defaultObjectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 
     @Override
@@ -56,17 +75,17 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
 
     @Override
     protected boolean supports(Class<?> clazz) {
-        return getJsonPackField(clazz) != null;
+        return findJsonPackField(clazz) != null;
     }
 
     @Override
     public boolean canRead(Type type, @Nullable Class<?> contextClass, @Nullable MediaType mediaType) {
-        return getJsonPackField(type) != null;
+        return findJsonPackField(type) != null;
     }
 
     @Override
     public boolean canWrite(Type type, @Nullable Class<?> contextClass, @Nullable MediaType mediaType) {
-        return getJsonPackField(type) != null;
+        return findJsonPackField(type) != null;
     }
 
     @Override
@@ -75,7 +94,7 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
         String body = StreamUtils.copyToString(inputMessage.getBody(), charset);
         HttpInputMessage inputMessageWrapper = inputMessage;
 
-        Field jsonPackField = getJsonPackField(type);
+        Field jsonPackField = findJsonPackField(type);
         if (jsonPackField != null) {
             Object objectNode = null;
             if (type instanceof ParameterizedType) {
@@ -114,7 +133,7 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
     @Override
     protected void writeInternal(Object object, @Nullable Type type, HttpOutputMessage outputMessage)
             throws IOException, HttpMessageNotWritableException {
-        Field jsonPackField = getJsonPackField(type);
+        Field jsonPackField = findJsonPackField(type);
         if (jsonPackField != null) {
             object = defaultObjectMapper.readTree(defaultObjectMapper.writeValueAsString(object));
             if (type instanceof ParameterizedType) {
@@ -142,7 +161,7 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
         return parse(rawClass, objectNode, opt_);
     }
     private ObjectNode parse(Class<?> clazz, ObjectNode jsonObject, OPT_ opt_) throws IOException {
-        Field jsonPackField = getJsonPackField(clazz);
+        Field jsonPackField = findJsonPackField(clazz);
         if (jsonPackField == null) {
             return jsonObject;
         }
@@ -175,7 +194,7 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
                 }
             }
 
-            // todo 打包字段如果是字符串类型，入库时会自动添加转义字符，这会导致不能使用JSON查询语句
+            // TODO 打包字段如果是字符串类型，入库时会自动添加转义字符，这会导致不能使用JSON查询语句
             // 如果存储的键值没有查询场景，可以将其定义为JSON字段。多一个兼容也没坏处，尽管好像也没啥用。。。
             if ("java.lang.String".equalsIgnoreCase(jsonPackField.getType().getTypeName())) {
                 // jsonObject.putIfAbsent(jsonPackField.getName(), packNode);
@@ -200,15 +219,16 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
         return jsonObject;
     }
 
-    private List<Field> getNoneJsonPackField(Type type) {
+    private List<Field> findNoneJsonPackField(Type type) {
         Class<?> clazz = getRawType(type);
         if (clazz == null) {
             return null;
         }
 
-        return cachedNoneJsonPackField.computeIfAbsent(clazz, c -> {
-            Field[] allFields = c.getDeclaredFields();
-            Field jsonPackField = getJsonPackField(c);
+        // FIXME 有穿透风险
+        return cachedNoneJsonPackField.computeIfAbsent(clazz, cl -> {
+            Field[] allFields = cl.getDeclaredFields();
+            Field jsonPackField = findJsonPackField(cl);
             return Arrays.stream(allFields).filter(field -> {
                 if (jsonPackField == null) {
                     return true;
@@ -218,21 +238,22 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
         });
     }
 
-    private Field getJsonPackField(Type type) {
+    private Field findJsonPackField(Type type) {
         Class<?> clazz = getRawType(type);
         if (clazz == null) {
             return null;
         }
 
-        return cachedJsonPackField.computeIfAbsent(clazz, c -> {
+        // FIXME 有穿透风险
+        return cachedJsonPackField.computeIfAbsent(clazz, cl -> {
             // 类必须要@JsonPackEntity
-            JsonPackEntity clazzAnnotation = c.getAnnotation(JsonPackEntity.class);
+            JsonPackEntity clazzAnnotation = cl.getAnnotation(JsonPackEntity.class);
             if (clazzAnnotation == null || clazzAnnotation.disable()) {
                 return null;
             }
 
             // 有一个字段为@JsonPackField
-            Field[] fields = c.getDeclaredFields();
+            Field[] fields = cl.getDeclaredFields();
             List<Field> packField = Arrays.stream(fields).filter(field -> {
                 JsonPackField fieldAnnotation = field.getAnnotation(JsonPackField.class);
                 return fieldAnnotation != null && !fieldAnnotation.disable();
@@ -260,15 +281,25 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
         return clazz;
     }
 
+
     // -------------------------------------------------------------------------
-    // ---------------------------外部直接调用接口---------------------------------
+    // ---------------------------TODO 外部直接调用接口----------------------------
     // -------------------------------------------------------------------------
-    public static <T> String serialize(Class<T> entity, T object) throws IOException {
+
+    public static Field getJsonPackField(Type type) {
+        return getInstance().findJsonPackField(type);
+    }
+    public static List<Field> getNoneJsonPackField(Type type) {
+        return getInstance().findNoneJsonPackField(type);
+    }
+
+    // TODO JsonPackHttpMessageConverter.serialize(new TypeReference<List<JavaBen>>(){}.getType(), javaBenList);
+    public static <T> String serialize(Type entity, T object) throws IOException {
         return serialize(entity, object, MediaType.APPLICATION_JSON_VALUE);
     }
-    public static <T> String serialize(Class<T> entity, T object, String contentType) throws IOException {
+    public static <T> String serialize(Type entity, T object, String contentType) throws IOException {
         HttpOutputMessage outputMessage =  new HttpOutputMessage() {
-            private OutputStream out = new ByteArrayOutputStream(1024);
+            private final OutputStream out = new ByteArrayOutputStream(1024);
 
             @Override
             public OutputStream getBody() { return out; }
@@ -285,10 +316,13 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
         return outputMessage.getBody().toString();
     }
 
-    public static <T> T deserialize(Class<T> entity, Class<?> controller, byte[] json) throws IOException {
+    // TODO JsonPackHttpMessageConverter.deserialize(new TypeReference<List<JavaBen>>(){}.getType(), XXXController.class, body.getBytes(StandardCharsets.UTF_8));
+    public static <T> T deserialize(Type entity, Class<?> controller, byte[] json) throws IOException {
         return deserialize(entity, controller, json, MediaType.APPLICATION_FORM_URLENCODED_VALUE);
     }
-    public static <T> T deserialize(Class<T> entity, Class<?> controller, byte[] json, String contentType) throws IOException {
+
+    @SuppressWarnings("unchecked")
+    public static <T> T deserialize(Type entity, Class<?> controller, byte[] json, String contentType) throws IOException {
         HttpInputMessage inputMessage =  new HttpInputMessage() {
             @Override
             public InputStream getBody() { return new ByteArrayInputStream(json); }
@@ -301,13 +335,19 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
             }
         };
 
-        return (T) new JsonPackHttpMessageConverter().read(entity, controller, inputMessage);
+        return (T) getInstance().read(entity, controller, inputMessage);
     }
 
-    public static Field getPackField(Type type) {
-        return new JsonPackHttpMessageConverter().getJsonPackField(type);
-    }
-    public static List<Field> getNonePackField(Type type) {
-        return new JsonPackHttpMessageConverter().getNoneJsonPackField(type);
+    private static volatile JsonPackHttpMessageConverter instance_;
+    public static JsonPackHttpMessageConverter getInstance() {
+        if (instance_ == null) {
+            synchronized (JsonPackHttpMessageConverter.class) {
+                if (instance_ == null) {
+                    instance_ = new JsonPackHttpMessageConverter();
+                }
+            }
+        }
+
+        return instance_;
     }
 }

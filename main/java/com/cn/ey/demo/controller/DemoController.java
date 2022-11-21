@@ -7,7 +7,6 @@ import com.cn.ey.demo.domain.user.valueobject.UserQueryVO;
 import com.cn.ey.demo.controller.dto.UserQuery;
 import com.cn.ey.demo.support.converter.JsonPackHttpMessageConverter;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.ibatis.type.TypeReference;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.propertyeditors.PropertiesEditor;
@@ -50,13 +49,7 @@ public class DemoController {
     }
 
     @PostMapping("/add")
-    public UserDto add(@RequestBody List<UserDto> userDto) throws IOException {
-        /*String text = JsonPackHttpMessageConverter.serialize(new TypeReference<List<UserDto>>() {}, userDto);
-        UserDto dto = JsonPackHttpMessageConverter.deserialize(UserDto.class, DemoController.class, text.getBytes(StandardCharsets.UTF_8));
-        log.info("序列化text：{}", text);
-        log.info("反序列化参数：{}", dto);
-        return null;*/
-
+    public UserDto add(@RequestBody List<UserDto> userDto) {
         log.info("接收参数：{}", userDto);
 
         // 添加

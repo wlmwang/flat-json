@@ -13,6 +13,10 @@ public class UserQueryVO {
 
     private Integer age;
 
+    private String sex;
+
+    private String addr;
+
     private String family;
 
     Map<String, String> searchRuleMap;

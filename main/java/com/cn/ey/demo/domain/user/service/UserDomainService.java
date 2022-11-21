@@ -3,9 +3,7 @@ package com.cn.ey.demo.domain.user.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
-import com.baomidou.mybatisplus.core.toolkit.StringUtils;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.cn.ey.demo.controller.dto.UserDto;
 import com.cn.ey.demo.domain.user.entity.UserBO;
 import com.cn.ey.demo.domain.user.valueobject.UserQueryVO;
 import com.cn.ey.demo.infrastructure.user.provider.UserService;
@@ -28,18 +26,39 @@ public class UserDomainService {
     @Autowired
     private UserService service;
 
-    private <T> QueryWrapper<T> buildQuery(UserQueryVO query) {
+    public List<UserBO> search(@RequestBody UserQueryVO userQuery) {
+        return service.list(buildQuery(userQuery, userQuery.getSearchRuleMap(), userQuery.getSortRuleList(), UserBO.class));
+    }
+
+    public UserBO save(UserBO userBO) {
+        if (!service.save(userBO)) {
+            return null;
+        }
+        LambdaQueryWrapper<UserBO> queryWrapper = Wrappers.lambdaQuery(UserBO.class).eq(UserBO::getId, userBO.getId());
+        return service.getOne(queryWrapper);
+    }
+
+    public List<UserBO> saveBatch(List<UserBO> userBOList) {
+        if (!service.saveBatch(userBOList)) {
+            return null;
+        }
+
+        List<Long> idList = userBOList.stream().map(UserBO::getId).collect(Collectors.toList());
+        return service.list(Wrappers.<UserBO>lambdaQuery().in(CollectionUtils.isNotEmpty(idList), UserBO::getId, idList));
+    }
+
+    private <T> QueryWrapper<T> buildQuery(Object query, Map<String, String> searchRuleMap, List<Map<String, String>> sortRuleList, Class<T> clazz) {
         QueryWrapper<T> queryWrapper = Wrappers.query();
 
-        if (CollectionUtils.isEmpty(query.getSearchRuleMap())) {
+        if (CollectionUtils.isEmpty(searchRuleMap)) {
             return Wrappers.emptyWrapper();
         }
-        List<Field> nonePackField = JsonPackHttpMessageConverter.getNonePackField(UserDto.class);
-        Field packField = JsonPackHttpMessageConverter.getPackField(UserDto.class);
+        List<Field> nonePackField = JsonPackHttpMessageConverter.getNoneJsonPackField(clazz);
+        Field packField = JsonPackHttpMessageConverter.getJsonPackField(clazz);
         MetaObject queryMetaObject = SystemMetaObject.forObject(query);
 
         // condition
-        query.getSearchRuleMap().forEach((field, rule) -> {
+        searchRuleMap.forEach((field, rule) -> {
             Object value = queryMetaObject.getValue(field);
             if (Objects.isNull(value)) {
                 return;
@@ -49,6 +68,7 @@ public class UserDomainService {
             for (Field f : nonePackField) {
                 if (f.getName().equals(field)) {
                     unpack_ = true;
+                    break;
                 }
             }
             if (!unpack_) {
@@ -93,7 +113,7 @@ public class UserDomainService {
         });
 
         // order
-        query.getSortRuleList().forEach(rule -> {
+        sortRuleList.forEach(rule -> {
             assert rule.size() == 1;
             rule.forEach((n, r) -> {
                 String field = n;
@@ -102,6 +122,7 @@ public class UserDomainService {
                 for (Field f : nonePackField) {
                     if (f.getName().equals(n)) {
                         unpack_ = true;
+                        break;
                     }
                 }
                 if (!unpack_) {
@@ -119,27 +140,5 @@ public class UserDomainService {
         });
 
         return queryWrapper;
-    }
-
-    public List<UserBO> search(@RequestBody UserQueryVO userQuery) {
-        return service.list(buildQuery(userQuery));
-    }
-
-
-    public UserBO save(UserBO userBO) {
-        if (!service.save(userBO)) {
-            return null;
-        }
-        LambdaQueryWrapper<UserBO> queryWrapper = Wrappers.lambdaQuery(UserBO.class).eq(UserBO::getId, userBO.getId());
-        return service.getOne(queryWrapper);
-    }
-
-    public List<UserBO> saveBatch(List<UserBO> userBOList) {
-        if (!service.saveBatch(userBOList)) {
-            return null;
-        }
-
-        List<Long> idList = userBOList.stream().map(UserBO::getId).collect(Collectors.toList());
-        return service.list(Wrappers.<UserBO>lambdaQuery().in(CollectionUtils.isNotEmpty(idList), UserBO::getId, idList));
     }
 }

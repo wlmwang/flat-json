@@ -1,13 +1,8 @@
 package com.cn.ey.demo.controller.dto;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Data
 public class UserQuery {
@@ -17,17 +12,26 @@ public class UserQuery {
 
     private Integer age;
 
+    private String sex;
+
+    private String addr;
+
     private String family;
 
     // 当前安永，"包含"实际是like查找；在引入数组后可使用"包含like"，"包含in"进行区分
     Map<String, String> searchRuleMap = new HashMap<String, String>() {{
         put("name", "%like%");
+        put("addr", "%like%");
+        put("sex", "=");
         put("age", "=");
     }};
 
     List<Map<String, String>> sortRuleList = new ArrayList<Map<String, String>>() {{
-        add(new HashMap<String, String>() {{
+        add(new LinkedHashMap<String, String>() {{
             put("age", "desc");
+        }});
+        add(new LinkedHashMap<String, String>() {{
+            put("id", "asc");
         }});
     }};
 }
