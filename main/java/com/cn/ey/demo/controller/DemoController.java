@@ -7,6 +7,7 @@ import com.cn.ey.demo.domain.user.valueobject.UserQueryVO;
 import com.cn.ey.demo.controller.dto.UserQuery;
 import com.cn.ey.demo.support.converter.JsonPackHttpMessageConverter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.ibatis.type.TypeReference;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.propertyeditors.PropertiesEditor;
@@ -49,7 +50,12 @@ public class DemoController {
     }
 
     @PostMapping("/add")
-    public UserDto add(@RequestBody UserDto userDto) {
+    public UserDto add(@RequestBody List<UserDto> userDto) throws IOException {
+        /*String text = JsonPackHttpMessageConverter.serialize(new TypeReference<List<UserDto>>() {}, userDto);
+        UserDto dto = JsonPackHttpMessageConverter.deserialize(UserDto.class, DemoController.class, text.getBytes(StandardCharsets.UTF_8));
+        log.info("序列化text：{}", text);
+        log.info("反序列化参数：{}", dto);
+        return null;*/
 
         log.info("接收参数：{}", userDto);
 
@@ -124,14 +130,14 @@ public class DemoController {
     public static class UserConverter extends PropertiesEditor {
         @Override
         public void setAsText(String text) throws IllegalArgumentException {
-            UserDto UserDto;
+            UserDto userDto;
             try {
                 assert text != null;
-                UserDto = JsonPackHttpMessageConverter.converter(UserDto.class, DemoController.class, text.getBytes(StandardCharsets.UTF_8));
+                userDto = JsonPackHttpMessageConverter.deserialize(UserDto.class, DemoController.class, text.getBytes(StandardCharsets.UTF_8));
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
-            setValue(UserDto);
+            setValue(userDto);
         }
         @Override
         public String getAsText() {

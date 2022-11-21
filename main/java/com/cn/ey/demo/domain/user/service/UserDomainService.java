@@ -1,18 +1,23 @@
 package com.cn.ey.demo.domain.user.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
 import com.baomidou.mybatisplus.core.toolkit.StringUtils;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.cn.ey.demo.controller.dto.UserDto;
 import com.cn.ey.demo.domain.user.entity.UserBO;
 import com.cn.ey.demo.domain.user.valueobject.UserQueryVO;
 import com.cn.ey.demo.infrastructure.user.provider.UserService;
+import com.cn.ey.demo.support.converter.JsonPackHttpMessageConverter;
+import org.apache.ibatis.reflection.MetaObject;
+import org.apache.ibatis.reflection.SystemMetaObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.RequestBody;
 
-import java.util.List;
-import java.util.Objects;
+import java.lang.reflect.Field;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -23,28 +28,103 @@ public class UserDomainService {
     @Autowired
     private UserService service;
 
-    public List<UserBO> search(@RequestBody UserQueryVO userQuery) {
-        LambdaQueryWrapper<UserBO> queryWrapper = Wrappers.lambdaQuery(UserBO.class);
-        // queryWrapper.select(User::getAge);
-        queryWrapper.eq(!Objects.isNull(userQuery.getId()), UserBO::getId, userQuery.getId());
-        queryWrapper.like(!Objects.isNull(userQuery.getName()), UserBO::getName, userQuery.getName());
+    private <T> QueryWrapper<T> buildQuery(UserQueryVO query) {
+        QueryWrapper<T> queryWrapper = Wrappers.query();
 
-        // 字段：extension->>'$.age' = {0}
-        // 数组：JSON_CONTAINS(extension, JSON_OBJECT('family', {0}))
-
-        queryWrapper.apply(StringUtils.isNotBlank(userQuery.getFamily()), "JSON_CONTAINS(extension, JSON_OBJECT('family', {0}))", userQuery.getFamily());
-        // queryWrapper.apply(StringUtils.isNotBlank(userDto.getFamily()), "extension ->> '$.family[0]' LIKE CONCAT('%',{0},'%')", userDto.getFamily());
-
-        if (!Objects.isNull(userQuery.getAge())) {
-            queryWrapper.and(wrapper -> {
-                wrapper.apply(!Objects.isNull(userQuery.getAge()), "extension->>'$.age' is null").or();
-                wrapper.apply(!Objects.isNull(userQuery.getAge()), "extension->>'$.age' = {0}", userQuery.getAge());
-            });
+        if (CollectionUtils.isEmpty(query.getSearchRuleMap())) {
+            return Wrappers.emptyWrapper();
         }
-        queryWrapper.last("ORDER BY extension->>'$.age' DESC");
+        List<Field> nonePackField = JsonPackHttpMessageConverter.getNonePackField(UserDto.class);
+        Field packField = JsonPackHttpMessageConverter.getPackField(UserDto.class);
+        MetaObject queryMetaObject = SystemMetaObject.forObject(query);
 
-        return service.list(queryWrapper);
+        // condition
+        query.getSearchRuleMap().forEach((field, rule) -> {
+            Object value = queryMetaObject.getValue(field);
+            if (Objects.isNull(value)) {
+                return;
+            }
+
+            boolean unpack_ = false;
+            for (Field f : nonePackField) {
+                if (f.getName().equals(field)) {
+                    unpack_ = true;
+                }
+            }
+            if (!unpack_) {
+                field = packField.getName() + "->>'$." + field + "'";
+            }
+
+            switch (rule) {
+                case "=":
+                    if (!unpack_) {
+                        queryWrapper.apply(field + " = {0}", value);
+                    } else {
+                        queryWrapper.eq(field, value);
+                    }
+                    break;
+                case ">":
+                    if (!unpack_) {
+                        queryWrapper.apply(field + " > {0}", value);
+                    } else {
+                        queryWrapper.gt(field, value);
+                    }
+                    break;
+                case "<":
+                    if (!unpack_) {
+                        queryWrapper.apply(field + " < {0}", value);
+                    } else {
+                        queryWrapper.lt(field, value);
+                    }
+                    break;
+                case "%like%":
+                    if (!unpack_) {
+                        queryWrapper.apply(field + " LIKE CONCAT('%',{0},'%')", value);
+                    } else {
+                        queryWrapper.like(field, value);
+                    }
+                    break;
+
+                case "in":
+                case "between":
+                case "contain":
+                    // queryWrapper.apply(StringUtils.isNotBlank(userDto.getFamily()), "extension ->> '$.family[0]' LIKE CONCAT('%',{0},'%')", userDto.getFamily());
+            }
+        });
+
+        // order
+        query.getSortRuleList().forEach(rule -> {
+            assert rule.size() == 1;
+            rule.forEach((n, r) -> {
+                String field = n;
+
+                boolean unpack_ = false;
+                for (Field f : nonePackField) {
+                    if (f.getName().equals(n)) {
+                        unpack_ = true;
+                    }
+                }
+                if (!unpack_) {
+                    field = packField.getName() + "->>'$." + field + "'";
+                }
+
+                switch (r.toUpperCase()) {
+                    case "DESC":
+                        queryWrapper.orderByDesc(field);
+                        break;
+                    case "ASC":
+                        queryWrapper.orderByAsc(field);
+                }
+            });
+        });
+
+        return queryWrapper;
     }
+
+    public List<UserBO> search(@RequestBody UserQueryVO userQuery) {
+        return service.list(buildQuery(userQuery));
+    }
+
 
     public UserBO save(UserBO userBO) {
         if (!service.save(userBO)) {

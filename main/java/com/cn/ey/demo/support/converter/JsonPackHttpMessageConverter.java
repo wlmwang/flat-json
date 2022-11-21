@@ -12,9 +12,7 @@ import org.springframework.http.converter.json.MappingJackson2HttpMessageConvert
 import org.springframework.lang.Nullable;
 import org.springframework.util.StreamUtils;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -36,6 +34,7 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
      * 一个实体类只能又一个JsonPackField字段
      */
     private final Map<Class<?>, Field> cachedJsonPackField = new ConcurrentHashMap<>();
+    private final Map<Class<?>, List<Field>> cachedNoneJsonPackField = new ConcurrentHashMap<>();
 
     public JsonPackHttpMessageConverter() {
         init();
@@ -150,7 +149,7 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
 
         // 普通字段（没有 @JsonPackField 注解的字段）
         Map<String, Field> normalFiledNames = Arrays.stream(clazz.getDeclaredFields()).filter(
-                field -> field != jsonPackField
+                field ->  !jsonPackField.getName().equals(field.getName())
         ).collect(Collectors.toMap(Field::getName, v -> v));
 
         if (opt_ == OPT_.PACK) {
@@ -201,6 +200,24 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
         return jsonObject;
     }
 
+    private List<Field> getNoneJsonPackField(Type type) {
+        Class<?> clazz = getRawType(type);
+        if (clazz == null) {
+            return null;
+        }
+
+        return cachedNoneJsonPackField.computeIfAbsent(clazz, c -> {
+            Field[] allFields = c.getDeclaredFields();
+            Field jsonPackField = getJsonPackField(c);
+            return Arrays.stream(allFields).filter(field -> {
+                if (jsonPackField == null) {
+                    return true;
+                }
+                return !jsonPackField.getName().equals(field.getName());
+            }).collect(Collectors.toList());
+        });
+    }
+
     private Field getJsonPackField(Type type) {
         Class<?> clazz = getRawType(type);
         if (clazz == null) {
@@ -243,12 +260,35 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
         return clazz;
     }
 
-
-    // 外部直接调用接口
-    public static <T> T converter(Class<T> entity, Class<?> controller, byte[] json) throws IOException {
-        return converter(entity, controller, json, MediaType.APPLICATION_FORM_URLENCODED_VALUE);
+    // -------------------------------------------------------------------------
+    // ---------------------------外部直接调用接口---------------------------------
+    // -------------------------------------------------------------------------
+    public static <T> String serialize(Class<T> entity, T object) throws IOException {
+        return serialize(entity, object, MediaType.APPLICATION_JSON_VALUE);
     }
-    public static <T> T converter(Class<T> entity, Class<?> controller, byte[] json, String contentType) throws IOException {
+    public static <T> String serialize(Class<T> entity, T object, String contentType) throws IOException {
+        HttpOutputMessage outputMessage =  new HttpOutputMessage() {
+            private OutputStream out = new ByteArrayOutputStream(1024);
+
+            @Override
+            public OutputStream getBody() { return out; }
+
+            @Override
+            public HttpHeaders getHeaders() {
+                HttpHeaders httpHeaders = new HttpHeaders();
+                httpHeaders.add(HttpHeaders.CONTENT_TYPE, contentType);
+                return httpHeaders;
+            }
+        };
+        new JsonPackHttpMessageConverter().writeInternal(object, entity, outputMessage);
+
+        return outputMessage.getBody().toString();
+    }
+
+    public static <T> T deserialize(Class<T> entity, Class<?> controller, byte[] json) throws IOException {
+        return deserialize(entity, controller, json, MediaType.APPLICATION_FORM_URLENCODED_VALUE);
+    }
+    public static <T> T deserialize(Class<T> entity, Class<?> controller, byte[] json, String contentType) throws IOException {
         HttpInputMessage inputMessage =  new HttpInputMessage() {
             @Override
             public InputStream getBody() { return new ByteArrayInputStream(json); }
@@ -260,6 +300,14 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
                 return httpHeaders;
             }
         };
+
         return (T) new JsonPackHttpMessageConverter().read(entity, controller, inputMessage);
+    }
+
+    public static Field getPackField(Type type) {
+        return new JsonPackHttpMessageConverter().getJsonPackField(type);
+    }
+    public static List<Field> getNonePackField(Type type) {
+        return new JsonPackHttpMessageConverter().getNoneJsonPackField(type);
     }
 }
