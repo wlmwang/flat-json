@@ -7,7 +7,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.cn.ey.demo.domain.user.entity.UserBO;
 import com.cn.ey.demo.domain.user.valueobject.UserQueryVO;
 import com.cn.ey.demo.infrastructure.user.provider.UserService;
-import com.cn.ey.demo.support.converter.JsonPackHttpMessageConverter;
+import com.cn.ey.demo.support.converter.JsonPackHttpMessageConverters;
 import org.apache.ibatis.reflection.MetaObject;
 import org.apache.ibatis.reflection.SystemMetaObject;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,8 +53,8 @@ public class UserDomainService {
         if (CollectionUtils.isEmpty(searchRuleMap)) {
             return Wrappers.emptyWrapper();
         }
-        List<Field> nonePackField = JsonPackHttpMessageConverter.getNoneJsonPackField(clazz);
-        Field packField = JsonPackHttpMessageConverter.getJsonPackField(clazz);
+        List<Field> nonePackField = JsonPackHttpMessageConverters.getNoneJsonPackField(clazz);
+        Field packField = JsonPackHttpMessageConverters.getJsonPackField(clazz);
         MetaObject queryMetaObject = SystemMetaObject.forObject(query);
 
         // condition

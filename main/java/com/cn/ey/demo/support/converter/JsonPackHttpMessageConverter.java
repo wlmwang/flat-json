@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
+import org.springframework.core.ResolvableType;
 import org.springframework.http.*;
 import org.springframework.http.converter.*;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
@@ -19,6 +20,7 @@ import java.io.*;
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import java.lang.reflect.TypeVariable;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -40,7 +42,7 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
     private final Map<Class<?>, List<Field>> cachedNoneJsonPackField = new ConcurrentHashMap<>();
 
     public JsonPackHttpMessageConverter() {
-        // ObjectMapper objectMapper = Jackson2ObjectMapperBuilder.json().build();
+        // objectMapper = Jackson2ObjectMapperBuilder.json().build();
         init();
     }
     public JsonPackHttpMessageConverter(ObjectMapper objectMapper) {
@@ -219,7 +221,7 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
         return jsonObject;
     }
 
-    private List<Field> findNoneJsonPackField(Type type) {
+    List<Field> findNoneJsonPackField(Type type) {
         Class<?> clazz = getRawType(type);
         if (clazz == null) {
             return null;
@@ -238,7 +240,7 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
         });
     }
 
-    private Field findJsonPackField(Type type) {
+    Field findJsonPackField(Type type) {
         Class<?> clazz = getRawType(type);
         if (clazz == null) {
             return null;
@@ -268,86 +270,23 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
         });
     }
 
-    private Class<?> getRawType(Type type) {
-        if (type instanceof ParameterizedType) {
-            Type[] types = ((ParameterizedType) type).getActualTypeArguments();
-            if (types != null && types[0] instanceof Class<?>) {
-                type = types[0];
+    // 获取泛型中首个类型参数
+    // getRawType(new TypeReference<List<JavaBean>>(){}.getType()) ---> JavaBean.class
+    Class<?> getRawType(Type type) {
+        if (type instanceof TypeVariable) {
+            throw new IllegalArgumentException("不能有未确认的泛型参数");
+        } else if (type instanceof ParameterizedType) {
+            ResolvableType resolvedType = ResolvableType.forType(type);
+            if (resolvedType.hasUnresolvableGenerics()) {
+                throw new IllegalArgumentException("不能有未确认的泛型参数");
             }
-        }
-        if (!(type instanceof Class<?> clazz)) {
-            return null;
-        }
-        return clazz;
-    }
 
-
-    // -------------------------------------------------------------------------
-    // ---------------------------TODO 外部直接调用接口----------------------------
-    // -------------------------------------------------------------------------
-
-    public static Field getJsonPackField(Type type) {
-        return getInstance().findJsonPackField(type);
-    }
-    public static List<Field> getNoneJsonPackField(Type type) {
-        return getInstance().findNoneJsonPackField(type);
-    }
-
-    // TODO JsonPackHttpMessageConverter.serialize(new TypeReference<List<JavaBen>>(){}.getType(), javaBenList);
-    public static <T> String serialize(Type entity, T object) throws IOException {
-        return serialize(entity, object, MediaType.APPLICATION_JSON_VALUE);
-    }
-    public static <T> String serialize(Type entity, T object, String contentType) throws IOException {
-        HttpOutputMessage outputMessage =  new HttpOutputMessage() {
-            private final OutputStream out = new ByteArrayOutputStream(1024);
-
-            @Override
-            public OutputStream getBody() { return out; }
-
-            @Override
-            public HttpHeaders getHeaders() {
-                HttpHeaders httpHeaders = new HttpHeaders();
-                httpHeaders.add(HttpHeaders.CONTENT_TYPE, contentType);
-                return httpHeaders;
-            }
-        };
-        new JsonPackHttpMessageConverter().writeInternal(object, entity, outputMessage);
-
-        return outputMessage.getBody().toString();
-    }
-
-    // TODO JsonPackHttpMessageConverter.deserialize(new TypeReference<List<JavaBen>>(){}.getType(), XXXController.class, body.getBytes(StandardCharsets.UTF_8));
-    public static <T> T deserialize(Type entity, Class<?> controller, byte[] json) throws IOException {
-        return deserialize(entity, controller, json, MediaType.APPLICATION_FORM_URLENCODED_VALUE);
-    }
-
-    @SuppressWarnings("unchecked")
-    public static <T> T deserialize(Type entity, Class<?> controller, byte[] json, String contentType) throws IOException {
-        HttpInputMessage inputMessage =  new HttpInputMessage() {
-            @Override
-            public InputStream getBody() { return new ByteArrayInputStream(json); }
-
-            @Override
-            public HttpHeaders getHeaders() {
-                HttpHeaders httpHeaders = new HttpHeaders();
-                httpHeaders.add(HttpHeaders.CONTENT_TYPE, contentType);
-                return httpHeaders;
-            }
-        };
-
-        return (T) getInstance().read(entity, controller, inputMessage);
-    }
-
-    private static volatile JsonPackHttpMessageConverter instance_;
-    public static JsonPackHttpMessageConverter getInstance() {
-        if (instance_ == null) {
-            synchronized (JsonPackHttpMessageConverter.class) {
-                if (instance_ == null) {
-                    instance_ = new JsonPackHttpMessageConverter();
-                }
+            ResolvableType[] resolvableTypes = resolvedType.getGenerics();
+            if (resolvableTypes[0].getRawClass() != null) {
+                type = resolvableTypes[0].getRawClass();
             }
         }
 
-        return instance_;
+        return (type instanceof Class<?>) ? (Class<?>) type : null;
     }
 }

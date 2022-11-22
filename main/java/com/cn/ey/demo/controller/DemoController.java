@@ -5,7 +5,7 @@ import com.cn.ey.demo.domain.user.entity.UserBO;
 import com.cn.ey.demo.domain.user.service.UserDomainService;
 import com.cn.ey.demo.domain.user.valueobject.UserQueryVO;
 import com.cn.ey.demo.controller.dto.UserQuery;
-import com.cn.ey.demo.support.converter.JsonPackHttpMessageConverter;
+import com.cn.ey.demo.support.converter.JsonPackHttpMessageConverters;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,7 +49,7 @@ public class DemoController {
     }
 
     @PostMapping("/add")
-    public UserDto add(@RequestBody List<UserDto> userDto) {
+    public UserDto add(@RequestBody UserDto userDto) {
         log.info("接收参数：{}", userDto);
 
         // 添加
@@ -126,7 +126,7 @@ public class DemoController {
             UserDto userDto;
             try {
                 assert text != null;
-                userDto = JsonPackHttpMessageConverter.deserialize(UserDto.class, DemoController.class, text.getBytes(StandardCharsets.UTF_8));
+                userDto = JsonPackHttpMessageConverters.deserialize(UserDto.class, text.getBytes(StandardCharsets.UTF_8));
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
