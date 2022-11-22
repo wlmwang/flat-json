@@ -138,6 +138,7 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
         Field jsonPackField = findJsonPackField(type);
         if (jsonPackField != null) {
             object = defaultObjectMapper.readTree(defaultObjectMapper.writeValueAsString(object));
+            // FIXME 泛型嵌套
             if (type instanceof ParameterizedType) {
                 if ("java.util.List".equalsIgnoreCase(((ParameterizedType) type).getRawType().getTypeName())) {
                     ArrayNode arrNode = defaultObjectMapper.readValue(object.toString(), ArrayNode.class);
@@ -282,7 +283,10 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
             }
 
             ResolvableType[] resolvableTypes = resolvedType.getGenerics();
-            if (resolvableTypes[0].getRawClass() != null) {
+            if ((resolvableTypes[0].getType() instanceof TypeVariable) ||
+                    (resolvableTypes[0].getType() instanceof ParameterizedType)) {
+                return getRawType(resolvableTypes[0].getType());
+            } else if (resolvableTypes[0].getRawClass() != null) {
                 type = resolvableTypes[0].getRawClass();
             }
         }

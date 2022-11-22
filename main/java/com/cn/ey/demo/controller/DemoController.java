@@ -1,5 +1,7 @@
 package com.cn.ey.demo.controller;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.cn.ey.demo.controller.dto.BaseResponse;
 import com.cn.ey.demo.controller.dto.UserDto;
 import com.cn.ey.demo.domain.user.entity.UserBO;
 import com.cn.ey.demo.domain.user.service.UserDomainService;
@@ -29,7 +31,6 @@ public class DemoController {
 
     @PostMapping("/search")
     public List<UserDto> search(@RequestBody UserQuery userQuery) {
-
         log.info("查询参数：{}", userQuery);
 
         UserQueryVO vo = new UserQueryVO();
@@ -145,5 +146,53 @@ public class DemoController {
         log.info("接收参数：{}", userDto);
 
         return userDto;
+    }
+
+
+
+
+
+    @PostMapping("/repsonse-search")
+    public BaseResponse<Page<UserDto>> repsonseSearch(@RequestBody UserQuery userQuery) {
+        log.info("查询参数：{}", userQuery);
+
+        // 分页对象
+        Page<UserDto> page = new Page<>(1L, 10L, false);
+
+        // 执行查询
+        UserQueryVO vo = new UserQueryVO();
+        BeanUtils.copyProperties(userQuery, vo);
+        List<UserBO> userBOList = service.search(vo);
+        if (CollectionUtils.isEmpty(userBOList)) {
+            return null;
+        }
+        log.info("查询结果：[{}]", userBOList);
+
+        List<UserDto> dtoList = userBOList.stream().map(bo -> {
+            UserDto dto = new UserDto();
+            BeanUtils.copyProperties(bo, dto);
+            return dto;
+        }).collect(Collectors.toList());
+
+        Page<UserDto> objectPage = Page.<UserDto>of(page.getCurrent(), dtoList.size(), 100L);
+        objectPage.setRecords(dtoList);
+
+        log.info("分页结果 {}", objectPage);
+        return BaseResponse.success(objectPage);
+    }
+    @PostMapping("/response-save")
+    public BaseResponse<UserDto> responseSave(@RequestBody UserDto userDto) {
+        log.info("接收参数：{}", userDto);
+
+        // 添加
+        UserBO bo = new UserBO();
+        BeanUtils.copyProperties(userDto, bo);
+        UserBO userBO = service.save(bo);
+
+        log.info("操作结果：{}", userBO);
+
+        UserDto dto = new UserDto();
+        BeanUtils.copyProperties(userBO, dto);
+        return BaseResponse.success(dto);
     }
 }
