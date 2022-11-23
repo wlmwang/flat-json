@@ -7,7 +7,7 @@ import java.io.Serial;
 import java.io.Serializable;
 
 @Data
-public class BaseResponse<U, T> implements Serializable {
+public class BaseResponse<T, U> implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
@@ -16,24 +16,24 @@ public class BaseResponse<U, T> implements Serializable {
 
     public T result;
 
-    public static <U, T> BaseResponse<U, T> success() {
-        return new BaseResponse<U, T>(null);
+    public static <T, U> BaseResponse<T, U> success() {
+        return new BaseResponse<T, U>(null);
     }
 
-    public static <U, T> BaseResponse<U, T> success(T result) {
-        return new BaseResponse<U, T>(result);
+    public static <T, U> BaseResponse<T, U> success(T result) {
+        return new BaseResponse<T, U>(result);
     }
 
-    public static <U, T> BaseResponse<U, T> success(U message, T result) {
-        return new BaseResponse<U, T>(HttpStatus.OK.value(), result, message);
+    public static <T, U> BaseResponse<T, U> success(T result, U message) {
+        return new BaseResponse<T, U>(HttpStatus.OK.value(), result, message);
     }
 
-    public static <U, T> BaseResponse<U, T> failure() {
-        return new BaseResponse<U, T>(HttpStatus.INTERNAL_SERVER_ERROR.value(), null, null);
+    public static <T, U> BaseResponse<T, U> failure() {
+        return new BaseResponse<T, U>(HttpStatus.INTERNAL_SERVER_ERROR.value(), null, null);
     }
 
-    public static <U, T> BaseResponse<U, T> failure(int code, U message) {
-        return new BaseResponse<U, T>(code, null, message);
+    public static <T, U> BaseResponse<T, U> failure(int code, U message) {
+        return new BaseResponse<T, U>(code, null, message);
     }
 
     public BaseResponse(T result) {
