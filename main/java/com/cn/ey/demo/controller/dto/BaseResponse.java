@@ -1,12 +1,14 @@
 package com.cn.ey.demo.controller.dto;
 
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.springframework.http.HttpStatus;
 
 import java.io.Serial;
 import java.io.Serializable;
 
 @Data
+@NoArgsConstructor
 public class BaseResponse<T, U> implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
@@ -17,7 +19,7 @@ public class BaseResponse<T, U> implements Serializable {
     public T result;
 
     public static <T, U> BaseResponse<T, U> success() {
-        return new BaseResponse<T, U>(null);
+        return new BaseResponse<T, U>((T)null);
     }
 
     public static <T, U> BaseResponse<T, U> success(T result) {
