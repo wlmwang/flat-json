@@ -1,14 +1,15 @@
 package com.cn.ey.demo.support.converter;
 
 import com.cn.ey.demo.support.annotation.JsonPackEntity;
-import com.cn.ey.demo.support.annotation.JsonPackField;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.BaseJsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
+import org.apache.ibatis.reflection.SystemMetaObject;
 import org.springframework.core.ResolvableType;
 import org.springframework.http.*;
 import org.springframework.http.converter.*;
@@ -17,10 +18,7 @@ import org.springframework.lang.Nullable;
 import org.springframework.util.StreamUtils;
 
 import java.io.*;
-import java.lang.reflect.Field;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
-import java.lang.reflect.TypeVariable;
+import java.lang.reflect.*;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -36,10 +34,10 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
     private final List<MediaType> supportedMediaTypes = new ArrayList<>();
 
     /**
-     * 一个实体类只能又一个JsonPackField字段
+     * 一个实体类只能又一个打包JSON字段
      */
-    private final Map<Class<?>, Field> cachedJsonPackField = new ConcurrentHashMap<>();
-    private final Map<Class<?>, List<Field>> cachedNoneJsonPackField = new ConcurrentHashMap<>();
+    private final Map<Class<?>, Field> cachedJsonPackEntityField = new ConcurrentHashMap<>();
+    private final Map<Class<?>, List<Field>> cachedNoneJsonPackEntityField = new ConcurrentHashMap<>();
 
     public JsonPackHttpMessageConverter() {
         // objectMapper = Jackson2ObjectMapperBuilder.json().build();
@@ -77,50 +75,39 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
 
     @Override
     protected boolean supports(Class<?> clazz) {
-        return findJsonPackField(clazz) != null;
+        return findJsonPackEntityField(clazz) != null;
     }
 
     @Override
     public boolean canRead(Type type, @Nullable Class<?> contextClass, @Nullable MediaType mediaType) {
-        return findJsonPackField(type) != null;
+        return findJsonPackEntityField(type) != null;
     }
 
     @Override
     public boolean canWrite(Type type, @Nullable Class<?> contextClass, @Nullable MediaType mediaType) {
-        return findJsonPackField(type) != null;
+        return findJsonPackEntityField(type) != null;
     }
 
     @Override
     public Object read(Type type, @Nullable Class<?> contextClass, final HttpInputMessage inputMessage)
             throws IOException, HttpMessageNotReadableException {
-        String body = StreamUtils.copyToString(inputMessage.getBody(), charset);
         HttpInputMessage inputMessageWrapper = inputMessage;
 
-        Field jsonPackField = findJsonPackField(type);
+        Field jsonPackField = findJsonPackEntityField(type);
         if (jsonPackField != null) {
-            Object objectNode = null;
+            String body = StreamUtils.copyToString(inputMessage.getBody(), charset);
+            // FIXME 泛型嵌套
+            Object object;
             if (type instanceof ParameterizedType) {
-                if ("java.util.List".equalsIgnoreCase(((ParameterizedType) type).getRawType().getTypeName())) {
-                    ArrayNode arrNode = defaultObjectMapper.readValue(body, ArrayNode.class);
-                    ArrayNode newNode = defaultObjectMapper.createArrayNode();
-                    for (Iterator<JsonNode> elements = arrNode.elements(); elements.hasNext(); ) {
-                        JsonNode jsonNode = elements.next();
-                        // 对象数组 - 仅支持一维的数组，直接存放键值对的JSON
-                        if (jsonNode.isObject()) {
-                            newNode.add(readNode(getRawType(type), (ObjectNode) defaultObjectMapper.readValue(jsonNode.toString(), JsonNode.class), OPT_.PACK));
-                        }
-                    }
-                    objectNode = newNode;
-                }
+                object = readNode(ResolvableType.forType(type), body);
             } else {
-                objectNode = readNode(getRawType(type), (ObjectNode) defaultObjectMapper.readValue(body, JsonNode.class), OPT_.PACK);
+                object = parseNode(getRawType(type), (ObjectNode) defaultObjectMapper.readValue(body, JsonNode.class), OPT_.PACK);
             }
 
-            final Object finalObjectNode = objectNode;
             inputMessageWrapper = new HttpInputMessage() {
                 @Override
                 public InputStream getBody() throws IOException {
-                    return new ByteArrayInputStream(defaultObjectMapper.writeValueAsBytes(finalObjectNode));
+                    return new ByteArrayInputStream(defaultObjectMapper.writeValueAsBytes(object));
                 }
                 @Override
                 public HttpHeaders getHeaders() {
@@ -135,36 +122,126 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
     @Override
     protected void writeInternal(Object object, @Nullable Type type, HttpOutputMessage outputMessage)
             throws IOException, HttpMessageNotWritableException {
-        Field jsonPackField = findJsonPackField(type);
+        Field jsonPackField = findJsonPackEntityField(type);
+
         if (jsonPackField != null) {
-            object = defaultObjectMapper.readTree(defaultObjectMapper.writeValueAsString(object));
             // FIXME 泛型嵌套
             if (type instanceof ParameterizedType) {
-                if ("java.util.List".equalsIgnoreCase(((ParameterizedType) type).getRawType().getTypeName())) {
-                    ArrayNode arrNode = defaultObjectMapper.readValue(object.toString(), ArrayNode.class);
-                    ArrayNode newNode = defaultObjectMapper.createArrayNode();
-                    for (Iterator<JsonNode> elements = arrNode.elements(); elements.hasNext(); ) {
-                        JsonNode jsonNode = elements.next();
-                        // 对象数组 - 仅支持一维的数组，直接存放键值对的JSON
-                        if (jsonNode.isObject()) {
-                            newNode.add(readNode(getRawType(type), (ObjectNode) defaultObjectMapper.readValue(jsonNode.toString(), JsonNode.class), OPT_.UNPACK));
-                        }
-                    }
-                    object = newNode;
-                }
+                object = writeNode(ResolvableType.forType(type), object);
             } else {
-                object = readNode(getRawType(type), (ObjectNode) defaultObjectMapper.readValue(object.toString(), JsonNode.class), OPT_.UNPACK);
+                object = defaultObjectMapper.readTree(defaultObjectMapper.writeValueAsString(object));
+                object = parseNode(getRawType(type), (ObjectNode) defaultObjectMapper.readValue(object.toString(), JsonNode.class), OPT_.UNPACK);
             }
         }
 
         super.writeInternal(object, type, outputMessage);
     }
 
-    private ObjectNode readNode(Class<?> rawClass, ObjectNode objectNode, OPT_ opt_) throws IOException {
-        return parse(rawClass, objectNode, opt_);
+    private Object readNode(ResolvableType resolvedType, Object object) throws IOException {
+        Type rawType = resolvedType.getGeneric().getType();
+        if (rawType instanceof TypeVariable) {
+            if (resolvedType.getRawClass() != null) {
+                resolvedType = ResolvableType.forClassWithGenerics(resolvedType.getRawClass(), ResolvableType.forType(resolvedType.getGeneric().resolve()));
+            } else {
+                return null;
+            }
+        }
+
+        rawType = resolvedType.getGeneric().getType();
+        Field jsonPackField = findJsonPackEntityField(rawType);
+        if (jsonPackField == null) {
+            return null;
+        }
+
+        if (resolvedType.hasGenerics()) {
+            Class<?> clazz = resolvedType.getRawClass();
+            if (clazz == null) {
+                return null;
+            }
+            if (List.class.isAssignableFrom(clazz)) {
+                ArrayNode arrNode = defaultObjectMapper.readValue(object.toString(), ArrayNode.class);
+                ArrayNode newNode = defaultObjectMapper.createArrayNode();
+                for (Iterator<JsonNode> elements = arrNode.elements(); elements.hasNext(); ) {
+                    JsonNode jsonNode = elements.next();
+                    if (jsonNode.isObject()) {
+                        newNode.add(parseNode(getRawType(resolvedType.getType()), (ObjectNode) defaultObjectMapper.readValue(jsonNode.toString(), JsonNode.class), OPT_.PACK));
+                    } else {
+                        newNode.add((BaseJsonNode) readNode(resolvedType.getGeneric(), jsonNode));
+                    }
+                }
+                object = newNode;
+            }
+        } else {
+            object = parseNode(getRawType(resolvedType.getType()), (ObjectNode) defaultObjectMapper.readValue(object.toString(), JsonNode.class), OPT_.PACK);
+        }
+
+        return object;
     }
-    private ObjectNode parse(Class<?> clazz, ObjectNode jsonObject, OPT_ opt_) throws IOException {
-        Field jsonPackField = findJsonPackField(clazz);
+
+    private Object writeNode(ResolvableType resolvedType, Object object) throws IOException {
+        Type rawType = resolvedType.getGeneric().getType();
+        if (rawType instanceof TypeVariable) {
+            if (resolvedType.getRawClass() != null) {
+                resolvedType = ResolvableType.forClassWithGenerics(resolvedType.getRawClass(), ResolvableType.forType(resolvedType.getGeneric().resolve()));
+            } else {
+                return null;
+            }
+        }
+
+        rawType = resolvedType.getGeneric().getType();
+        Field jsonPackField = findJsonPackEntityField(rawType);
+        if (jsonPackField == null) {
+            return null;
+        }
+
+        if (resolvedType.hasGenerics()) {
+            if (object instanceof BaseJsonNode) {
+                object = defaultObjectMapper.readValue(object.toString(), resolvedType.getRawClass());
+            }
+            Class<?> clazz = ResolvableType.forInstance(object).getRawClass();
+            if (clazz == null) {
+                return null;
+            }
+            if (List.class.isAssignableFrom(clazz)) {
+                object = defaultObjectMapper.readTree(defaultObjectMapper.writeValueAsString(object));
+                ArrayNode arrNode = defaultObjectMapper.readValue(object.toString(), ArrayNode.class);
+                ArrayNode newNode = defaultObjectMapper.createArrayNode();
+                for (Iterator<JsonNode> elements = arrNode.elements(); elements.hasNext(); ) {
+                    JsonNode jsonNode = elements.next();
+                    if (jsonNode.isObject()) {
+                        newNode.add(parseNode(getRawType(rawType), (ObjectNode) defaultObjectMapper.readValue(jsonNode.toString(), JsonNode.class), OPT_.UNPACK));
+                    } else {
+                        newNode.add((BaseJsonNode) writeNode(ResolvableType.forType(rawType), jsonNode));
+                    }
+                }
+                return newNode;
+            } else {
+                Field[] fields = clazz.getDeclaredFields();
+                for (Field field: fields) {
+                    Type fieldType = field.getGenericType();
+                    if (fieldType instanceof ParameterizedType || fieldType instanceof TypeVariable) {
+                        Object fieldValue = SystemMetaObject.forObject(object).getValue(field.getName());
+                        BaseJsonNode jsonNode = (BaseJsonNode) writeNode(ResolvableType.forField(field, resolvedType), fieldValue);
+                        // 在当前字段中，递归泛型参数后，找到了打包字段
+                        if (jsonNode != null) {
+                            SystemMetaObject.forObject(object).setValue(field.getName(), null);
+                            JsonNode leftObject = defaultObjectMapper.readTree(defaultObjectMapper.writeValueAsString(object));
+                            ObjectNode leftNode = defaultObjectMapper.readValue(leftObject.toString(), ObjectNode.class);
+                            leftNode.replace(field.getName(), jsonNode);
+                            return leftNode;
+                        }
+                    }
+                }
+            }
+        } else {
+            object = parseNode(getRawType(rawType), (ObjectNode) defaultObjectMapper.readValue(object.toString(), JsonNode.class), OPT_.UNPACK);
+        }
+
+        return object;
+    }
+
+    private ObjectNode parseNode(Class<?> clazz, ObjectNode jsonObject, OPT_ opt_) throws IOException {
+        Field jsonPackField = findJsonPackEntityField(clazz);
         if (jsonPackField == null) {
             return jsonObject;
         }
@@ -200,7 +277,6 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
             // TODO 打包字段如果是字符串类型，入库时会自动添加转义字符，这会导致不能使用JSON查询语句
             // 如果存储的键值没有查询场景，可以将其定义为JSON字段。多一个兼容也没坏处，尽管好像也没啥用。。。
             if ("java.lang.String".equalsIgnoreCase(jsonPackField.getType().getTypeName())) {
-                // jsonObject.putIfAbsent(jsonPackField.getName(), packNode);
                 jsonObject.put(jsonPackField.getName(), packNode.toString());
             } else if ("java.util.Map".equalsIgnoreCase(jsonPackField.getType().getTypeName())) {
                 jsonObject.replace(jsonPackField.getName(), packNode);
@@ -222,52 +298,41 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
         return jsonObject;
     }
 
-    List<Field> findNoneJsonPackField(Type type) {
+    Field findJsonPackEntityField(Type type) {
         Class<?> clazz = getRawType(type);
         if (clazz == null) {
             return null;
         }
 
         // FIXME 有穿透风险
-        return cachedNoneJsonPackField.computeIfAbsent(clazz, cl -> {
-            Field[] allFields = cl.getDeclaredFields();
-            Field jsonPackField = findJsonPackField(cl);
-            return Arrays.stream(allFields).filter(field -> {
-                if (jsonPackField == null) {
-                    return true;
-                }
-                return !jsonPackField.getName().equals(field.getName());
-            }).collect(Collectors.toList());
-        });
-    }
-
-    Field findJsonPackField(Type type) {
-        Class<?> clazz = getRawType(type);
-        if (clazz == null) {
-            return null;
-        }
-
-        // FIXME 有穿透风险
-        return cachedJsonPackField.computeIfAbsent(clazz, cl -> {
-            // 类必须要@JsonPackEntity
+        // 扫描注解类 @JsonPackEntity
+        return cachedJsonPackEntityField.computeIfAbsent(clazz, cl -> {
             JsonPackEntity clazzAnnotation = cl.getAnnotation(JsonPackEntity.class);
             if (clazzAnnotation == null || clazzAnnotation.disable()) {
                 return null;
             }
 
-            // 有一个字段为@JsonPackField
-            Field[] fields = cl.getDeclaredFields();
-            List<Field> packField = Arrays.stream(fields).filter(field -> {
-                JsonPackField fieldAnnotation = field.getAnnotation(JsonPackField.class);
-                return fieldAnnotation != null && !fieldAnnotation.disable();
-            }).toList();
+            return Arrays.stream(cl.getDeclaredFields()).filter(
+                    field -> field.getName().equals(clazzAnnotation.field())
+            ).findFirst().orElse(null);
+        });
+    }
 
-            if (packField.size() > 1) {
-                throw new RuntimeException("一个实体最多能有一个@SecurityField的字段");
-            } else if (packField.size() == 1) {
-                return packField.get(0);
-            }
+    List<Field> findNoneJsonPackEntityField(Type type) {
+        Class<?> clazz = getRawType(type);
+        if (clazz == null) {
             return null;
+        }
+
+        return cachedNoneJsonPackEntityField.computeIfAbsent(clazz, cl -> {
+            Field[] allFields = cl.getDeclaredFields();
+            Field jsonPackEntityField = findJsonPackEntityField(cl);
+            return Arrays.stream(allFields).filter(field -> {
+                if (Objects.isNull(jsonPackEntityField)) {
+                    return true;
+                }
+                return !jsonPackEntityField.getName().equals(field.getName());
+            }).collect(Collectors.toList());
         });
     }
 
@@ -275,19 +340,19 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
     // getRawType(new TypeReference<List<JavaBean>>(){}.getType()) ---> JavaBean.class
     Class<?> getRawType(Type type) {
         if (type instanceof TypeVariable) {
-            throw new IllegalArgumentException("不能有未确认的泛型参数");
+            throw new IllegalArgumentException("不能有未确认的泛型变量");
         } else if (type instanceof ParameterizedType) {
             ResolvableType resolvedType = ResolvableType.forType(type);
             if (resolvedType.hasUnresolvableGenerics()) {
-                throw new IllegalArgumentException("不能有未确认的泛型参数");
+                throw new IllegalArgumentException("不能有未解析的泛型参数");
             }
 
-            ResolvableType[] resolvableTypes = resolvedType.getGenerics();
-            if ((resolvableTypes[0].getType() instanceof TypeVariable) ||
-                    (resolvableTypes[0].getType() instanceof ParameterizedType)) {
-                return getRawType(resolvableTypes[0].getType());
-            } else if (resolvableTypes[0].getRawClass() != null) {
-                type = resolvableTypes[0].getRawClass();
+            ResolvableType resolvableType = resolvedType.getGeneric();
+            if ((resolvableType instanceof TypeVariable) ||
+                    (resolvableType.getType() instanceof ParameterizedType)) {
+                return getRawType(resolvableType.getType());
+            } else if (resolvableType.getRawClass() != null) {
+                type = resolvableType.getRawClass();
             }
         }
 

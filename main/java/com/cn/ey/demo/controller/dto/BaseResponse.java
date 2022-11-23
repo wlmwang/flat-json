@@ -7,32 +7,33 @@ import java.io.Serial;
 import java.io.Serializable;
 
 @Data
-public class BaseResponse<T> implements Serializable {
+public class BaseResponse<U, T> implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
     public Integer status;
+    public U message;
+
     public T result;
-    public String message;
 
-    public static <T> BaseResponse<T> success() {
-        return new BaseResponse<T>(null);
+    public static <U, T> BaseResponse<U, T> success() {
+        return new BaseResponse<U, T>(null);
     }
 
-    public static <T> BaseResponse<T> success(T result) {
-        return new BaseResponse<T>(result);
+    public static <U, T> BaseResponse<U, T> success(T result) {
+        return new BaseResponse<U, T>(result);
     }
 
-    public static <T> BaseResponse<T> success(T result, String message) {
-        return new BaseResponse<T>(HttpStatus.OK.value(), result, message);
+    public static <U, T> BaseResponse<U, T> success(U message, T result) {
+        return new BaseResponse<U, T>(HttpStatus.OK.value(), result, message);
     }
 
-    public static <T> BaseResponse<T> failure() {
-        return new BaseResponse<T>(HttpStatus.INTERNAL_SERVER_ERROR.value(), null, null);
+    public static <U, T> BaseResponse<U, T> failure() {
+        return new BaseResponse<U, T>(HttpStatus.INTERNAL_SERVER_ERROR.value(), null, null);
     }
 
-    public static <T> BaseResponse<T> failure(int code, String message) {
-        return new BaseResponse<T>(code, null, message);
+    public static <U, T> BaseResponse<U, T> failure(int code, U message) {
+        return new BaseResponse<U, T>(code, null, message);
     }
 
     public BaseResponse(T result) {
@@ -43,7 +44,7 @@ public class BaseResponse<T> implements Serializable {
         this(status, result, null);
     }
 
-    public BaseResponse(int status, T result, String message) {
+    public BaseResponse(int status, T result, U message) {
         this.status = status;
         this.result = result;
         this.message = message;

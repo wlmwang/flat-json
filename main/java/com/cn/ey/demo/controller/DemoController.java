@@ -66,10 +66,10 @@ public class DemoController {
     }
 
     @PostMapping("/batch")
-    public List<UserDto> batch(@RequestBody List<UserDto> userDtoList) {
+    public List<List<List<UserDto>>> batch(@RequestBody List<List<List<UserDto>>> userDtoList) {
         log.info("接收参数：[{}]", userDtoList);
 
-        List<UserBO> userBOList = userDtoList.stream().map(dto -> {
+        /*List<UserBO> userBOList = userDtoList.stream().map(dto -> {
             UserBO bo = new UserBO();
             BeanUtils.copyProperties(dto, bo);
             return bo;
@@ -86,7 +86,8 @@ public class DemoController {
             UserDto dto = new UserDto();
             BeanUtils.copyProperties(bo, dto);
             return dto;
-        }).toList();
+        }).toList();*/
+        return userDtoList;
     }
 
     @PostMapping("/mix/{id}")
@@ -153,7 +154,7 @@ public class DemoController {
 
 
     @PostMapping("/repsonse-search")
-    public BaseResponse<Page<UserDto>> repsonseSearch(@RequestBody UserQuery userQuery) {
+    public BaseResponse<String, Page<UserDto>> repsonseSearch(@RequestBody UserQuery userQuery) {
         log.info("查询参数：{}", userQuery);
 
         // 分页对象
@@ -178,10 +179,10 @@ public class DemoController {
         objectPage.setRecords(dtoList);
 
         log.info("分页结果 {}", objectPage);
-        return BaseResponse.success(objectPage);
+        return BaseResponse.success( "操作成功", objectPage);
     }
     @PostMapping("/response-save")
-    public BaseResponse<UserDto> responseSave(@RequestBody UserDto userDto) {
+    public BaseResponse<String, UserDto> responseSave(@RequestBody UserDto userDto) {
         log.info("接收参数：{}", userDto);
 
         // 添加

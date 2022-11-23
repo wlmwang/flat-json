@@ -31,7 +31,7 @@ public final class JsonPackHttpMessageConverters {
      * @return
      */
     public static Field getJsonPackField(Type type) {
-        return getConverter().findJsonPackField(type);
+        return getConverter().findJsonPackEntityField(type);
     }
 
     /**
@@ -41,7 +41,7 @@ public final class JsonPackHttpMessageConverters {
      * @return
      */
     public static List<Field> getNoneJsonPackField(Type type) {
-        return getConverter().findNoneJsonPackField(type);
+        return getConverter().findNoneJsonPackEntityField(type);
     }
 
     /**
