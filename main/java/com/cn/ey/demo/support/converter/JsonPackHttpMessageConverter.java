@@ -34,11 +34,7 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
 
     private final List<MediaType> supportedMediaTypes = new ArrayList<>();
 
-    /**
-     * 一个实体类只能又一个打包JSON字段
-     */
     private final Map<Class<?>, Field> cachedJsonPackEntityField = new ConcurrentHashMap<>();
-    private final Map<Class<?>, List<Field>> cachedNoneJsonPackEntityField = new ConcurrentHashMap<>();
 
     public JsonPackHttpMessageConverter() {
         // objectMapper = Jackson2ObjectMapperBuilder.json().build();
@@ -415,25 +411,6 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
         return null;
     }
 
-    List<Field> findNoneJsonPackEntityField(Type type) {
-        Class<?> clazz = getRawType(type);
-        if (clazz == null) {
-            return null;
-        }
-
-        return cachedNoneJsonPackEntityField.computeIfAbsent(clazz, cl -> {
-            Field[] allFields = cl.getDeclaredFields();
-            Field jsonPackEntityField = findJsonPackEntityField(cl);
-            return Arrays.stream(allFields).filter(field -> {
-                if (Objects.isNull(jsonPackEntityField)) {
-                    return true;
-                }
-                return !jsonPackEntityField.getName().equals(field.getName());
-            }).collect(Collectors.toList());
-        });
-    }
-
-    // 获取泛型中首个类型参数
     // getRawType(new TypeReference<List<JavaBean>>(){}.getType()) ---> JavaBean.class
     Class<?> getRawType(Type type) {
         if (type instanceof TypeVariable) {

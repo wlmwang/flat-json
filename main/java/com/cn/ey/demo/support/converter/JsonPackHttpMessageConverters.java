@@ -1,47 +1,32 @@
 package com.cn.ey.demo.support.converter;
 
+import com.cn.ey.demo.support.annotation.JsonPackEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpInputMessage;
 import org.springframework.http.HttpOutputMessage;
 import org.springframework.http.MediaType;
+import org.springframework.util.StringUtils;
 
 import java.io.*;
 import java.lang.reflect.Field;
 import java.lang.reflect.Type;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 public final class JsonPackHttpMessageConverters {
     private static volatile JsonPackHttpMessageConverter instance_;
 
     public static JsonPackHttpMessageConverter getConverter() {
         if (instance_ == null) {
-            synchronized (JsonPackHttpMessageConverter.class) {
+            synchronized (JsonPackHttpMessageConverters.class) {
                 if (instance_ == null) {
                     instance_ = new JsonPackHttpMessageConverter();
                 }
             }
         }
         return instance_;
-    }
-
-    /**
-     * 获取对象实体类型中注解了@JsonPackField的字段
-     *
-     * @param type 对象实体类型
-     * @return
-     */
-    public static Field getJsonPackField(Type type) {
-        return getConverter().findJsonPackEntityField(type);
-    }
-
-    /**
-     * 获取对象实体类型中所有未被注解了@JsonPackField的字段
-     *
-     * @param type 对象实体类型
-     * @return
-     */
-    public static List<Field> getNoneJsonPackField(Type type) {
-        return getConverter().findNoneJsonPackEntityField(type);
     }
 
     /**
@@ -112,5 +97,35 @@ public final class JsonPackHttpMessageConverters {
         };
 
         return (T) getConverter().read(entity, controller, inputMessage);
+    }
+
+    /**
+     * 获取对象实体类型中注解了@JsonPackEntity的打包字段
+     * @param type 可以是泛型参数中嵌套了注解了@JsonPackEntity对象实体类型的对象实体类型
+     * @return
+     */
+    public static Field getJsonPackEntityField(Type type) {
+        return getConverter().findJsonPackEntityField(type);
+    }
+
+    /**
+     * 获取对象实体类型中所有未被注解了@JsonPackEntity的字段
+     * @param clazz 只能是直接被注解了@JsonPackEntity的对象实体类型
+     * @return
+     */
+    public static List<Field> getNoneJsonPackEntityField(Class<?> clazz) {
+        JsonPackEntity clazzAnnotation = clazz.getAnnotation(JsonPackEntity.class);
+        if (clazzAnnotation == null || clazzAnnotation.disable() || !StringUtils.hasText(clazzAnnotation.field())) {
+            return null;
+        }
+
+        Field[] allFields = clazz.getDeclaredFields();
+        Field jsonPackEntityField = getJsonPackEntityField(clazz);
+        return Arrays.stream(allFields).filter(field -> {
+            if (Objects.isNull(jsonPackEntityField)) {
+                return true;
+            }
+            return !jsonPackEntityField.getName().equals(field.getName());
+        }).collect(Collectors.toList());
     }
 }

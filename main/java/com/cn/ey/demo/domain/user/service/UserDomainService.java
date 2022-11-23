@@ -53,8 +53,8 @@ public class UserDomainService {
         if (CollectionUtils.isEmpty(searchRuleMap)) {
             return Wrappers.emptyWrapper();
         }
-        List<Field> nonePackField = JsonPackHttpMessageConverters.getNoneJsonPackField(clazz);
-        Field packField = JsonPackHttpMessageConverters.getJsonPackField(clazz);
+        List<Field> nonePackField = JsonPackHttpMessageConverters.getNoneJsonPackEntityField(clazz);
+        Field packField = JsonPackHttpMessageConverters.getJsonPackEntityField(clazz);
         MetaObject queryMetaObject = SystemMetaObject.forObject(query);
 
         // condition
