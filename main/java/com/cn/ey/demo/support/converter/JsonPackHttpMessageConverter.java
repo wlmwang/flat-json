@@ -93,7 +93,6 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
         Field jsonPackField = findJsonPackEntityField(type);
         if (jsonPackField != null) {
             String body = StreamUtils.copyToString(inputMessage.getBody(), charset);
-            // FIXME 泛型嵌套
             Object object;
             if (type instanceof ParameterizedType) {
                 object = readNode(ResolvableType.forType(type), body);
@@ -124,7 +123,6 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
 
         Object objectNode = null;
         if (jsonPackField != null) {
-            // FIXME 泛型嵌套
             if (type instanceof ParameterizedType) {
                 objectNode = writeNode(ResolvableType.forType(type), object);
             } else {
@@ -313,13 +311,13 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
             return jsonObject;
         }
 
-        // 普通字段（没有 @JsonPackField 注解的字段）
+        // 普通字段（没有@JsonPackEntity注解的字段）
         Map<String, Field> normalFiledNames = Arrays.stream(clazz.getDeclaredFields()).filter(
                 field ->  !jsonPackField.getName().equals(field.getName())
         ).collect(Collectors.toMap(Field::getName, v -> v));
 
         if (opt_ == OPT_.PACK) {
-            // 将请求数据，打包到方法接收参数为@JsonPackField字段中
+            // 将请求数据，打包到方法接收参数为@JsonPackEntity字段中
             ObjectNode packNode = defaultObjectMapper.createObjectNode();
             for (Iterator<String> it = jsonObject.fieldNames(); it.hasNext(); ) {
                 String filedName = it.next();
@@ -348,7 +346,7 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
                 jsonObject.put(jsonPackField.getName(), packNode.toString());
             }
         } else {
-            // 将方法返回数据为@JsonPackField字段，拆解、平铺到一级字段中（二级变一级）
+            // 将方法返回数据为@JsonPackEntity字段，拆解、平铺到一级字段中（二级变一级）
             JsonNode jsonNode = jsonObject.get(jsonPackField.getName());
             jsonObject.remove(jsonPackField.getName());
             // 打包字段类型为java.lang.String
@@ -388,7 +386,7 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
                     clazz = resolvableType.getRawClass();
                 }
 
-                // FIXME Cache有穿透风险
+                // FIXME 有缓存穿透风险
                 Field packField = cachedJsonPackEntityField.computeIfAbsent(clazz, cl -> {
                     JsonPackEntity clazzAnnotation = cl.getAnnotation(JsonPackEntity.class);
                     if (clazzAnnotation == null || clazzAnnotation.disable()) {
