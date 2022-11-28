@@ -75,7 +75,7 @@ public class UserDomainService {
 
             if (!unpack_) {
                 field = packField.getName() + "->>'$." + field + "'";
-                // field = packField.getName() + "->>'" + field + "'"; // TODO postgresql
+                //field = packField.getName() + "->>'" + field + "'"; // TODO postgresql
             }
 
             // 1. TODO 在postgresql中，检索json里非text的数据字段时，需要精确指定其类型：("extension"->>'age')::int
@@ -139,7 +139,7 @@ public class UserDomainService {
                 }
                 if (!unpack_) {
                     field = packField.getName() + "->>'$." + field + "'";
-                    // field = packField.getName() + "->>'" + field + "'";   // TODO postgresql
+                    //field = packField.getName() + "->>'" + field + "'";   // TODO postgresql
                 }
 
                 switch (r.toUpperCase()) {

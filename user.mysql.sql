@@ -1,6 +1,6 @@
 -- MySQL dump 10.13  Distrib 8.0.31, for macos12 (x86_64)
 --
--- Host: 127.0.0.1    Database: test
+-- Host: 127.0.0.1    Database: dev
 -- ------------------------------------------------------
 -- Server version	8.0.31
 
@@ -24,7 +24,7 @@ DROP TABLE IF EXISTS `user`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `user` (
   `id` bigint unsigned NOT NULL,
-  `name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  `name` text COLLATE utf8mb4_bin,
   `extension` json DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
@@ -36,7 +36,7 @@ CREATE TABLE `user` (
 
 LOCK TABLES `user` WRITE;
 /*!40000 ALTER TABLE `user` DISABLE KEYS */;
-INSERT INTO `user` VALUES (1595600006978707457,'张三','{\"age\": 25, \"sex\": \"男\", \"addr\": \"上海浦东\", \"city\": \"上海\", \"phone\": \"131\", \"family\": [\"dad\", \"mum\"]}'),(1595600007066787841,'李四','{\"age\": 25, \"sex\": \"男\", \"addr\": \"上海浦东\", \"city\": \"上海\", \"phone\": \"131\", \"family\": [\"dad\", \"mum\"]}'),(1595600007070982145,'王五','{\"age\": 27, \"sex\": \"男\", \"addr\": \"北京海淀\", \"city\": \"北京\", \"phone\": \"131\", \"family\": [\"dad\", \"mum\"]}'),(1595600007070982146,'小红','{\"age\": 18, \"sex\": \"女\", \"addr\": \"北京海淀\", \"city\": \"北京\", \"phone\": \"131\", \"family\": [\"dad\", \"mum\"]}'),(1595600007070982147,'小红1','{\"age\": 18, \"sex\": \"女\", \"addr\": \"北京海淀\", \"city\": \"北京\", \"phone\": \"131\", \"family\": [\"dad\", \"mum\"]}'),(1595600007070982148,'小红1','{\"age\": 18, \"sex\": \"女\", \"addr\": \"上海浦西\", \"city\": \"上海\", \"phone\": \"131\", \"family\": [\"dad\", \"mum\"]}'),(1595600007070982149,'小红11','{\"age\": 28, \"sex\": \"女\", \"addr\": \"上海浦西\", \"city\": \"上海\", \"phone\": \"131\", \"family\": [\"dad\", \"mum\"]}');
+INSERT INTO `user` VALUES (1597115881590349825,'张三','{\"age\": 25, \"sex\": \"男\", \"addr\": \"上海浦东\", \"city\": \"上海\", \"phone\": \"131\", \"family\": [\"dad\", \"mum\"]}'),(1597115881607127042,'李四','{\"age\": 25, \"sex\": \"男\", \"addr\": \"上海浦东\", \"city\": \"上海\", \"phone\": \"131\", \"family\": [\"dad\", \"mum\"]}'),(1597115881607127043,'王五','{\"age\": 27, \"sex\": \"男\", \"addr\": \"北京海淀\", \"city\": \"北京\", \"phone\": \"131\", \"family\": [\"dad\", \"mum\"]}'),(1597115881611321346,'小红','{\"age\": 18, \"sex\": \"女\", \"addr\": \"北京海淀\", \"city\": \"北京\", \"phone\": \"131\", \"family\": [\"dad\", \"mum\"]}'),(1597115881611321347,'小红1','{\"age\": 18, \"sex\": \"女\", \"addr\": \"北京海淀\", \"city\": \"北京\", \"phone\": \"131\", \"family\": [\"dad\", \"mum\"]}'),(1597115881611321348,'小红1','{\"age\": 18, \"sex\": \"女\", \"addr\": \"上海浦西\", \"city\": \"上海\", \"phone\": \"131\", \"family\": [\"dad\", \"mum\"]}'),(1597115881615515650,'小红11','{\"age\": 28, \"sex\": \"女\", \"addr\": \"上海浦西\", \"city\": \"上海\", \"phone\": \"131\", \"family\": [\"dad\", \"mum\"]}');
 /*!40000 ALTER TABLE `user` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -49,4 +49,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2022-11-24 14:04:49
+-- Dump completed on 2022-11-28 14:38:36
