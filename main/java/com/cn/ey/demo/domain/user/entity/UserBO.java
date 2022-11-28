@@ -10,7 +10,8 @@ import lombok.Data;
 import java.util.Map;
 
 @Data
-@TableName(value = "user", autoResultMap = true)
+// @TableName(value = "user", autoResultMap = true)
+@TableName(schema = "public", value = "user", autoResultMap = true)
 @JsonPackEntity(field = "extension")
 public class UserBO {
     @TableId(value = "id")

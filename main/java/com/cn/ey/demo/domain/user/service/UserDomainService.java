@@ -72,9 +72,18 @@ public class UserDomainService {
                 }
             }
             if (!unpack_) {
-                field = packField.getName() + "->>'$." + field + "'";
+                // field = packField.getName() + "->>'$." + field + "'";
+                field = packField.getName() + "->>'" + field + "'"; // TODO postgresql
             }
 
+            // 1. TODO 在postgresql中，检索json里非text的数据字段时，需要精确指定其类型：("extension"->>'age')::int
+            // 2. TODO 在postgresql中，为了使用GIN索引，请使用一下sql语法
+            // select id,name,extension from public.user WHERE "extension"::jsonb @> '{"addr": "浦东"}';
+            // 3. TODO 在postgresql中，对于数组搜索，语法等同与常规字段匹配
+            // select id,name,extension from public.user WHERE "extension"::jsonb @> '{"family": ["dad"]}';
+            // 4. TODO 在postgresql中，对于字段提取。可以使用形如 "extension"->>'addr' 的语法，也可以使用如下函数形式。Mysql中使用JSON_EXTRACT提取
+            // select id,name,extension from public.user WHERE jsonb_extract_path_text("extension", 'addr') = '浦东';
+            // select id,name,extension from public.user WHERE jsonb_extract_path("extension", 'age') = 20;
             switch (rule) {
                 case "=":
                     if (!unpack_) {
@@ -109,6 +118,7 @@ public class UserDomainService {
                 case "between":
                 case "contain":
                     // queryWrapper.apply(StringUtils.isNotBlank(userDto.getFamily()), "extension ->> '$.family[0]' LIKE CONCAT('%',{0},'%')", userDto.getFamily());
+
             }
         });
 
@@ -126,7 +136,8 @@ public class UserDomainService {
                     }
                 }
                 if (!unpack_) {
-                    field = packField.getName() + "->>'$." + field + "'";
+                    // field = packField.getName() + "->>'$." + field + "'";
+                    field = packField.getName() + "->>'" + field + "'";   // TODO postgresql
                 }
 
                 switch (r.toUpperCase()) {
