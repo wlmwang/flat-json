@@ -1,5 +1,6 @@
 package com.cn.ey.demo.domain.user.entity;
 
+import com.baomidou.mybatisplus.annotation.FieldStrategy;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
@@ -10,8 +11,8 @@ import lombok.Data;
 import java.util.Map;
 
 @Data
-// @TableName(value = "user", autoResultMap = true)
-@TableName(schema = "public", value = "user", autoResultMap = true)
+@TableName(value = "user", autoResultMap = true)
+// @TableName(schema = "public", value = "user", autoResultMap = true) --- for postgres
 @JsonPackEntity(field = "extension")
 public class UserBO {
     @TableId(value = "id")
@@ -26,11 +27,10 @@ public class UserBO {
     @TableField(value = "extension" , typeHandler = JacksonTypeHandler.class)
     private Map<String, Object> extension;
 
-    /*
-    @TableField(value = "extension ->> '$.age'",
+    // 虚拟列
+    @TableField(value = "age",
        insertStrategy = FieldStrategy.NEVER,
        updateStrategy = FieldStrategy.NEVER,
        select = false)
     private String age;
-    */
 }
