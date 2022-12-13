@@ -5,15 +5,19 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 
 @Component
-public class ApplicationContextUtil {
+public class SpringContextUtil {
     private static ApplicationContext applicationContext;
 
     @Autowired
-    public ApplicationContextUtil(ApplicationContext context) {
+    public SpringContextUtil(ApplicationContext context) {
         applicationContext = context;
     }
 
     public static ApplicationContext applicationContext() {
         return applicationContext;
+    }
+
+    public static void autowireBean(Object bean) {
+        applicationContext.getAutowireCapableBeanFactory().autowireBean(bean);
     }
 }

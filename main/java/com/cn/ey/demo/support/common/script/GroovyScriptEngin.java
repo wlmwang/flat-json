@@ -1,6 +1,7 @@
-package com.cn.ey.demo.support.common;
+package com.cn.ey.demo.support.common.script;
 
 import cn.hutool.crypto.digest.MD5;
+import com.cn.ey.demo.support.common.SpringContextUtil;
 import groovy.lang.GroovyClassLoader;
 import groovy.lang.GroovyObject;
 
@@ -28,7 +29,7 @@ public class GroovyScriptEngin {
                     throw new RuntimeException("解析脚本失败", e);
                 }
                 if (Boolean.TRUE.equals(autowire)) {
-                    ApplicationContextUtil.applicationContext().getAutowireCapableBeanFactory().autowireBean(object);
+                    SpringContextUtil.autowireBean(object);
                 }
                 return object;
             };
@@ -38,6 +39,7 @@ public class GroovyScriptEngin {
             throw new RuntimeException("脚本执行失败", e);
         }
     }
+
 
     public static void main(String[] args) {
         String groovyScript = "public class test { " +

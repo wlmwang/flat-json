@@ -1,5 +1,6 @@
 package com.cn.ey.demo.controller;
 
+import cn.hutool.core.lang.Chain;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.cn.ey.demo.controller.dto.BaseResponse;
 import com.cn.ey.demo.controller.dto.BaseResponseTest;
@@ -10,6 +11,9 @@ import com.cn.ey.demo.domain.user.valueobject.UserQueryVO;
 import com.cn.ey.demo.controller.dto.UserQuery;
 import com.cn.ey.demo.support.converter.JsonPackHttpMessageConverters;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.ibatis.reflection.MetaClass;
+import org.apache.ibatis.reflection.MetaObject;
+import org.apache.ibatis.reflection.SystemMetaObject;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.propertyeditors.PropertiesEditor;

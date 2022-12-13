@@ -13,7 +13,7 @@ import java.util.*;
 import java.util.regex.Pattern;
 
 @Slf4j
-public class BeanGenerator {
+public class SpringBeanGenerator {
     private static final Pattern NUMBER_PATTERN = Pattern.compile("(^(\\-)?\\d{1,16}(\\.\\d{0,12}(E|e)?\\d{0,12})?)$|(0E-\\d{0,3})");
 
     public static Object generate(LinkedHashMap<String, Object> param) {
@@ -76,13 +76,14 @@ public class BeanGenerator {
         return result;
     }
 
+
     public static void main(String[] args) throws JsonProcessingException {
         LinkedHashMap<String, Object> map = new LinkedHashMap<>();
         map.put("id", 100L);
         map.put("name", "jack");
         map.put("hobby", Arrays.asList("zh", "en"));
 
-        Object generate = BeanGenerator.generate(map);
+        Object generate = SpringBeanGenerator.generate(map);
         System.out.printf("Object:" + generate);
 
         ObjectMapper objectMapper = new ObjectMapper();

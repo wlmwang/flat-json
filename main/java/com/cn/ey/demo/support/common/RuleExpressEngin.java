@@ -48,6 +48,7 @@ public class RuleExpressEngin {
         }
     }
 
+
     public static void main(String[] args) {
         String condition = "param.length() == 4 && param.equals(\"data\")";
         String execute = "System.out.println(param); int a = 1+1; System.out.println(a);";
