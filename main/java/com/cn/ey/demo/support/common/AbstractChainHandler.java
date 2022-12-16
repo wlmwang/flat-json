@@ -3,8 +3,6 @@ package com.cn.ey.demo.support.common;
 public abstract class AbstractChainHandler<T, R> {
     private AbstractChainHandler<T, R> next;
 
-    private AbstractChainHandler() {}
-
     public abstract R execute(Chain<T, R> chain);
 
     public static class Chain<T, R> {
@@ -13,6 +11,8 @@ public abstract class AbstractChainHandler<T, R> {
         AbstractChainHandler<T, R> curr;
 
         public T data() { return data; }
+
+        public T replace(T data) { return this.data = data; }
 
         public R proceed(T data) {
             R result = null;
