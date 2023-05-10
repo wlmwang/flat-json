@@ -1,6 +1,5 @@
 package com.cn.ey.demo.support.converter;
 
-import cn.hutool.core.util.ReflectUtil;
 import com.cn.ey.demo.support.annotation.JsonPackEntity;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -13,7 +12,6 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import org.apache.ibatis.reflection.SystemMetaObject;
 import org.springframework.core.ResolvableType;
-import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.http.*;
 import org.springframework.http.converter.*;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
@@ -140,34 +138,29 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
     private Object readNode(ResolvableType resolvedType, Object object) throws IOException {
         Type rawType = null;
         Field jsonPackField = null;
-        if (resolvedType.hasGenerics()) {
-            for (ResolvableType resolvableType : resolvedType.getGenerics()) {
-                rawType = resolvableType.getType();
-                if (rawType instanceof TypeVariable) {
-                    if (resolvedType.getRawClass() != null) {
-                        // 处理泛型嵌套，比如 - List<List<List<JavaBean>>>
-                        resolvedType = ResolvableType.forClassWithGenerics(resolvedType.getRawClass(), ResolvableType.forType(resolvedType.getGeneric().resolve()));
-                    } else {
-                        continue;
-                    }
-                }
-                if (resolvableType.hasGenerics()) {
-                    rawType = resolvableType.getType();
+        for (ResolvableType resolvableType : resolvedType.getGenerics()) {
+            rawType = resolvableType.getType();
+            if (rawType instanceof TypeVariable) {
+                if (resolvedType.getRawClass() != null) {
+                    // 处理泛型嵌套，比如 - List<List<List<JavaBean>>>
+                    resolvedType = ResolvableType.forClassWithGenerics(resolvedType.getRawClass(), ResolvableType.forType(resolvedType.getGeneric().resolve()));
                 } else {
-                    rawType = resolvableType.getType();
-                    if (rawType instanceof TypeVariable) {
-                        // 处理泛型嵌套，比如 - List<List<List<JavaBean>>>
-                        rawType = resolvableType.resolve();
-                    }
-                }
-                jsonPackField = findJsonPackEntityField(rawType);
-                if (jsonPackField != null) {
-                    break;
+                    continue;
                 }
             }
-        } else {
-            rawType = resolvedType.resolve();
+            if (resolvableType.hasGenerics()) {
+                rawType = resolvableType.getType();
+            } else {
+                rawType = resolvableType.getType();
+                if (rawType instanceof TypeVariable) {
+                    // 处理泛型嵌套，比如 - List<List<List<JavaBean>>>
+                    rawType = resolvableType.resolve();
+                }
+            }
             jsonPackField = findJsonPackEntityField(rawType);
+            if (jsonPackField != null) {
+                break;
+            }
         }
 
         // 是否存在JSON打包字段
@@ -209,7 +202,7 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
                     objectMap = (Map<String, Object>) object;
                 }
 
-                Field[] fields = ReflectUtil.getFields(clazz);
+                Field[] fields = clazz.getDeclaredFields();
                 for (Field field: fields) {
                     Type fieldType = field.getGenericType();
                     if (fieldType instanceof ParameterizedType || fieldType instanceof TypeVariable) {
@@ -227,9 +220,7 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
                 }
             }
         } else {
-            JsonNode leftObject = defaultObjectMapper.readTree(defaultObjectMapper.writeValueAsString(object));
-            ObjectNode leftNode = defaultObjectMapper.readValue(leftObject.toString(), ObjectNode.class);
-            object = parseNode(getRawType(rawType), leftNode, OPT_.PACK);
+            object = parseNode(getRawType(resolvedType.getType()), (ObjectNode) defaultObjectMapper.readValue(object.toString(), JsonNode.class), OPT_.PACK);
         }
 
         return object;
@@ -238,34 +229,29 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
     private Object writeNode(ResolvableType resolvedType, Object object) throws IOException {
         Type rawType = null;
         Field jsonPackField = null;
-        if (resolvedType.hasGenerics()) {
-            for (ResolvableType resolvableType : resolvedType.getGenerics()) {
-                rawType = resolvableType.getType();
-                if (rawType instanceof TypeVariable) {
-                    if (resolvedType.getRawClass() != null) {
-                        // 处理泛型嵌套，比如 - List<List<List<JavaBean>>>
-                        resolvedType = ResolvableType.forClassWithGenerics(resolvedType.getRawClass(), ResolvableType.forType(resolvedType.getGeneric().resolve()));
-                    } else {
-                        continue;
-                    }
-                }
-                if (resolvableType.hasGenerics()) {
-                    rawType = resolvableType.getType();
+        for (ResolvableType resolvableType : resolvedType.getGenerics()) {
+            rawType = resolvableType.getType();
+            if (rawType instanceof TypeVariable) {
+                if (resolvedType.getRawClass() != null) {
+                    // 处理泛型嵌套，比如 - List<List<List<JavaBean>>>
+                    resolvedType = ResolvableType.forClassWithGenerics(resolvedType.getRawClass(), ResolvableType.forType(resolvedType.getGeneric().resolve()));
                 } else {
-                    rawType = resolvableType.getType();
-                    if (rawType instanceof TypeVariable) {
-                        // 处理泛型嵌套，比如 - List<List<List<JavaBean>>>
-                        rawType = resolvableType.resolve();
-                    }
-                }
-                jsonPackField = findJsonPackEntityField(rawType);
-                if (jsonPackField != null) {
-                    break;
+                    continue;
                 }
             }
-        } else {
-            rawType = resolvedType.resolve();
+            if (resolvableType.hasGenerics()) {
+                rawType = resolvableType.getType();
+            } else {
+                rawType = resolvableType.getType();
+                if (rawType instanceof TypeVariable) {
+                    // 处理泛型嵌套，比如 - List<List<List<JavaBean>>>
+                    rawType = resolvableType.resolve();
+                }
+            }
             jsonPackField = findJsonPackEntityField(rawType);
+            if (jsonPackField != null) {
+                break;
+            }
         }
 
         // 是否存在JSON打包字段
@@ -295,7 +281,7 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
                 }
                 return newNode;
             } else {
-                Field[] fields = ReflectUtil.getFields(clazz);
+                Field[] fields = clazz.getDeclaredFields();
                 for (Field field: fields) {
                     Type fieldType = field.getGenericType();
                     if (fieldType instanceof ParameterizedType || fieldType instanceof TypeVariable) {
@@ -313,9 +299,7 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
                 }
             }
         } else {
-            JsonNode leftObject = defaultObjectMapper.readTree(defaultObjectMapper.writeValueAsString(object));
-            ObjectNode leftNode = defaultObjectMapper.readValue(leftObject.toString(), ObjectNode.class);
-            object = parseNode(getRawType(rawType), leftNode, OPT_.UNPACK);
+            object = parseNode(getRawType(rawType), (ObjectNode) defaultObjectMapper.readValue(object.toString(), JsonNode.class), OPT_.UNPACK);
         }
 
         return object;
@@ -328,7 +312,7 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
         }
 
         // 普通字段（没有@JsonPackEntity注解的字段）
-        Map<String, Field> normalFiledNames = Arrays.stream(ReflectUtil.getFields(clazz)).filter(
+        Map<String, Field> normalFiledNames = Arrays.stream(clazz.getDeclaredFields()).filter(
                 field ->  !jsonPackField.getName().equals(field.getName())
         ).collect(Collectors.toMap(Field::getName, v -> v));
 
@@ -366,47 +350,19 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
             JsonNode jsonNode = jsonObject.get(jsonPackField.getName());
             jsonObject.remove(jsonPackField.getName());
             // 打包字段类型为java.lang.String
-            if (Objects.nonNull(jsonNode)) {
-                if (jsonNode.isTextual()) {
-                    jsonNode = new ObjectMapper().readValue(jsonNode.asText(), JsonNode.class);
-                }
-                for (Iterator<String> it = jsonNode.fieldNames(); it.hasNext(); ) {
-                    String filedName = it.next();
-                    jsonObject.putIfAbsent(filedName, jsonNode.get(filedName));
-                }
+            if (jsonNode.isTextual()) {
+                jsonNode = new ObjectMapper().readValue(jsonNode.asText(), JsonNode.class);
+            }
+            for (Iterator<String> it = jsonNode.fieldNames(); it.hasNext(); ) {
+                String filedName = it.next();
+                jsonObject.putIfAbsent(filedName, jsonNode.get(filedName));
             }
         }
 
         return jsonObject;
     }
 
-    /**
-     * getRawType(new TypeReference<List<JavaBean>>(){}.getType()) ---> JavaBean.class
-     * @param type
-     * @return
-     */
-    Class<?> getRawType(Type type) {
-        if (type instanceof TypeVariable) {
-            throw new RuntimeException("不能有未确认的泛型变量");
-        } else if (type instanceof ParameterizedType) {
-            ResolvableType resolvedType = ResolvableType.forType(type);
-            if (resolvedType.hasUnresolvableGenerics()) {
-                throw new RuntimeException("不能有未解析的泛型参数");
-            }
-
-            ResolvableType resolvableType = resolvedType.getGeneric();
-            if ((resolvableType instanceof TypeVariable) ||
-                    (resolvableType.getType() instanceof ParameterizedType)) {
-                return getRawType(resolvableType.getType());
-            } else if (resolvableType.getRawClass() != null) {
-                type = resolvableType.getRawClass();
-            }
-        }
-
-        return (type instanceof Class<?>) ? (Class<?>) type : null;
-    }
-
-    public Field findJsonPackEntityField(Type type) {
+    Field findJsonPackEntityField(Type type) {
         if (type instanceof TypeVariable) {
             throw new RuntimeException("不能有未确认的泛型变量");
         } else if (type instanceof ParameterizedType || type instanceof Class<?>) {
@@ -432,11 +388,14 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
 
                 // FIXME 有缓存穿透风险
                 Field packField = cachedJsonPackEntityField.computeIfAbsent(clazz, cl -> {
-                    JsonPackEntity clazzAnnotation = AnnotationUtils.getAnnotation(cl, JsonPackEntity.class);
+                    JsonPackEntity clazzAnnotation = cl.getAnnotation(JsonPackEntity.class);
                     if (clazzAnnotation == null || clazzAnnotation.disable()) {
                         return null;
                     }
-                    return ReflectUtil.getField(cl, clazzAnnotation.field());
+
+                    return Arrays.stream(cl.getDeclaredFields()).filter(
+                            field -> field.getName().equals(clazzAnnotation.field())
+                    ).findFirst().orElse(null);
                 });
                 if (packField != null) {
                     if (!(Map.class.isAssignableFrom(packField.getType()) || String.class.isAssignableFrom(packField.getType()))) {
@@ -446,6 +405,29 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
                 }
             }
         }
+
         return null;
+    }
+
+    // getRawType(new TypeReference<List<JavaBean>>(){}.getType()) ---> JavaBean.class
+    Class<?> getRawType(Type type) {
+        if (type instanceof TypeVariable) {
+            throw new RuntimeException("不能有未确认的泛型变量");
+        } else if (type instanceof ParameterizedType) {
+            ResolvableType resolvedType = ResolvableType.forType(type);
+            if (resolvedType.hasUnresolvableGenerics()) {
+                throw new RuntimeException("不能有未解析的泛型参数");
+            }
+
+            ResolvableType resolvableType = resolvedType.getGeneric();
+            if ((resolvableType instanceof TypeVariable) ||
+                    (resolvableType.getType() instanceof ParameterizedType)) {
+                return getRawType(resolvableType.getType());
+            } else if (resolvableType.getRawClass() != null) {
+                type = resolvableType.getRawClass();
+            }
+        }
+
+        return (type instanceof Class<?>) ? (Class<?>) type : null;
     }
 }
