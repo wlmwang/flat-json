@@ -1,7 +1,9 @@
 package com.cn.ey.demo.support.converter;
 
+import cn.hutool.core.collection.CollectionUtil;
 import cn.hutool.core.util.ReflectUtil;
 import com.cn.ey.demo.support.annotation.JsonPackEntity;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -37,6 +39,8 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
     private final List<MediaType> supportedMediaTypes = new ArrayList<>();
 
     private final Map<Class<?>, Field> cachedJsonPackEntityField = new ConcurrentHashMap<>();
+
+    private boolean includeNonNullFlag = true;
 
     public JsonPackHttpMessageConverter() {
         // objectMapper = Jackson2ObjectMapperBuilder.json().build();
@@ -123,6 +127,12 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
             throws IOException, HttpMessageNotWritableException {
         Field jsonPackField = findJsonPackEntityField(type);
 
+        // 字段属性为null，依旧进行json编码，防止扩展字段的值覆盖了实体的普通字段
+        initIncludeNonNullFlag();
+        if (includeNonNullFlag) {
+            defaultObjectMapper.setSerializationInclusion(JsonInclude.Include.ALWAYS);
+        }
+
         Object objectNode = null;
         if (jsonPackField != null) {
             if (type instanceof ParameterizedType) {
@@ -133,6 +143,9 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
             }
         }
 
+        if (includeNonNullFlag) {
+            defaultObjectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+        }
         super.writeInternal(objectNode != null? objectNode: object, type, outputMessage);
     }
 
@@ -221,6 +234,7 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
                             JsonNode leftObject = defaultObjectMapper.readTree(defaultObjectMapper.writeValueAsString(objectMap));
                             ObjectNode leftNode = defaultObjectMapper.readValue(leftObject.toString(), ObjectNode.class);
                             leftNode.replace(field.getName(), jsonNode);
+                            SystemMetaObject.forObject(objectMap).setValue(field.getName(), fieldValue);
                             return leftNode;
                         }
                     }
@@ -307,6 +321,7 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
                             JsonNode leftObject = defaultObjectMapper.readTree(defaultObjectMapper.writeValueAsString(object));
                             ObjectNode leftNode = defaultObjectMapper.readValue(leftObject.toString(), ObjectNode.class);
                             leftNode.replace(field.getName(), jsonNode);
+                            SystemMetaObject.forObject(object).setValue(field.getName(), fieldValue);
                             return leftNode;
                         }
                     }
@@ -372,7 +387,22 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
                 }
                 for (Iterator<String> it = jsonNode.fieldNames(); it.hasNext(); ) {
                     String filedName = it.next();
+                    // 普通字段优先，之后是json字段
                     jsonObject.putIfAbsent(filedName, jsonNode.get(filedName));
+                }
+
+                // 移除null属性值
+                if (includeNonNullFlag) {
+                    Set<String> fieldNames = new HashSet<>();
+                    for (Iterator<String> it = jsonObject.fieldNames(); it.hasNext(); ) {
+                        String filedName = it.next();
+                        if (jsonObject.get(filedName).isNull()) {
+                            fieldNames.add(filedName);
+                        }
+                    }
+                    if (CollectionUtil.isNotEmpty(fieldNames)) {
+                        jsonObject.remove(fieldNames);
+                    }
                 }
             }
         }
@@ -385,7 +415,7 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
      * @param type
      * @return
      */
-    Class<?> getRawType(Type type) {
+    protected Class<?> getRawType(Type type) {
         if (type instanceof TypeVariable) {
             throw new RuntimeException("不能有未确认的泛型变量");
         } else if (type instanceof ParameterizedType) {
@@ -404,6 +434,13 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
         }
 
         return (type instanceof Class<?>) ? (Class<?>) type : null;
+    }
+
+    protected void initIncludeNonNullFlag() {
+        includeNonNullFlag = defaultObjectMapper.getSerializationConfig()
+                .getDefaultPropertyInclusion()
+                .getValueInclusion()
+                .equals(JsonInclude.Include.NON_NULL);
     }
 
     public Field findJsonPackEntityField(Type type) {
@@ -447,5 +484,40 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
             }
         }
         return null;
+    }
+
+    public <T> String serialize(Type entity, T object, String contentType) throws IOException {
+        HttpOutputMessage outputMessage =  new HttpOutputMessage() {
+            private final OutputStream out = new ByteArrayOutputStream(1024);
+
+            @Override
+            public OutputStream getBody() { return out; }
+
+            @Override
+            public HttpHeaders getHeaders() {
+                HttpHeaders httpHeaders = new HttpHeaders();
+                httpHeaders.add(HttpHeaders.CONTENT_TYPE, contentType);
+                return httpHeaders;
+            }
+        };
+        writeInternal(object, entity, outputMessage);
+
+        return outputMessage.getBody().toString();
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T> T deserialize(Type entity, Class<?> controller, byte[] json, String contentType) throws IOException {
+        HttpInputMessage inputMessage =  new HttpInputMessage() {
+            @Override
+            public InputStream getBody() { return new ByteArrayInputStream(json); }
+
+            @Override
+            public HttpHeaders getHeaders() {
+                HttpHeaders httpHeaders = new HttpHeaders();
+                httpHeaders.add(HttpHeaders.CONTENT_TYPE, contentType);
+                return httpHeaders;
+            }
+        };
+        return (T) read(entity, controller, inputMessage);
     }
 }

@@ -1,10 +1,7 @@
 package com.cn.ey.demo.support.converter;
 
 import com.cn.ey.demo.support.annotation.JsonPackEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpInputMessage;
-import org.springframework.http.HttpOutputMessage;
-import org.springframework.http.MediaType;
+import cn.hutool.core.util.ReflectUtil;
 import org.springframework.util.StringUtils;
 
 import java.io.*;
@@ -16,6 +13,10 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 public final class JsonPackHttpMessageConverters {
+    public static final String APPLICATION_JSON_VALUE = "application/json";
+
+    public static final String APPLICATION_FORM_URLENCODED_VALUE = "application/x-www-form-urlencoded";
+
     private static volatile JsonPackHttpMessageConverter instance_;
 
     public static JsonPackHttpMessageConverter getConverter() {
@@ -39,28 +40,11 @@ public final class JsonPackHttpMessageConverters {
      * @return JSON字符串
      * @throws IOException
      */
-    public static <T> String serialize(Type entity, T object)
-            throws IOException {
-        return serialize(entity, object, MediaType.APPLICATION_JSON_VALUE);
+    public static <T> String serialize(Type entity, T object) throws IOException {
+        return serialize(entity, object, APPLICATION_JSON_VALUE);
     }
-    public static <T> String serialize(Type entity, T object, String contentType)
-            throws IOException {
-        HttpOutputMessage outputMessage =  new HttpOutputMessage() {
-            private final OutputStream out = new ByteArrayOutputStream(1024);
-
-            @Override
-            public OutputStream getBody() { return out; }
-
-            @Override
-            public HttpHeaders getHeaders() {
-                HttpHeaders httpHeaders = new HttpHeaders();
-                httpHeaders.add(HttpHeaders.CONTENT_TYPE, contentType);
-                return httpHeaders;
-            }
-        };
-        getConverter().writeInternal(object, entity, outputMessage);
-
-        return outputMessage.getBody().toString();
+    public static <T> String serialize(Type entity, T object, String contentType) throws IOException {
+        return getConverter().serialize(entity, object, contentType);
     }
 
     /**
@@ -73,30 +57,14 @@ public final class JsonPackHttpMessageConverters {
      * @return 对象实体
      * @throws IOException
      */
-    public static <T> T deserialize(Type entity, byte[] json)
-            throws IOException {
-        return deserialize(entity, json, MediaType.APPLICATION_FORM_URLENCODED_VALUE);
+    public static <T> T deserialize(Type entity, byte[] json) throws IOException {
+        return deserialize(entity, json, APPLICATION_FORM_URLENCODED_VALUE);
     }
-    public static <T> T deserialize(Type entity, byte[] json, String contentType)
-            throws IOException {
+    public static <T> T deserialize(Type entity, byte[] json, String contentType) throws IOException {
         return deserialize(entity, null, json, contentType);
     }
-    @SuppressWarnings("unchecked")
-    public static <T> T deserialize(Type entity, Class<?> controller, byte[] json, String contentType)
-            throws IOException {
-        HttpInputMessage inputMessage =  new HttpInputMessage() {
-            @Override
-            public InputStream getBody() { return new ByteArrayInputStream(json); }
-
-            @Override
-            public HttpHeaders getHeaders() {
-                HttpHeaders httpHeaders = new HttpHeaders();
-                httpHeaders.add(HttpHeaders.CONTENT_TYPE, contentType);
-                return httpHeaders;
-            }
-        };
-
-        return (T) getConverter().read(entity, controller, inputMessage);
+    public static <T> T deserialize(Type entity, Class<?> controller, byte[] json, String contentType) throws IOException {
+        return getConverter().deserialize(entity, controller, json, contentType);
     }
 
     /**
@@ -119,7 +87,7 @@ public final class JsonPackHttpMessageConverters {
             return null;
         }
 
-        Field[] allFields = clazz.getDeclaredFields();
+        Field[] allFields = ReflectUtil.getFields(clazz);
         Field jsonPackEntityField = getJsonPackEntityField(clazz);
         return Arrays.stream(allFields).filter(field -> {
             if (Objects.isNull(jsonPackEntityField)) {
