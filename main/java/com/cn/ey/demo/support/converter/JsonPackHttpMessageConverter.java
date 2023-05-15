@@ -429,12 +429,17 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
             ResolvableType resolvableType = resolvedType.getGeneric();
             if ((resolvableType instanceof TypeVariable) || (resolvableType.getType() instanceof ParameterizedType)) {
                 return getRawType(resolvableType.getType());
-            } else if (resolvableType.getRawClass() != null) {
-                type = resolvableType.getRawClass();
+            } else if (resolvableType.getType() instanceof WildcardType) {
+                return getRawType(((WildcardType)resolvableType.getType()).getUpperBounds()[0]);
+            } else if (resolvedType.getType() instanceof ParameterizedType) {
+                return getRawType(resolvedType.getType());
             } else if (resolvedType.getType() instanceof WildcardType) {
                 return getRawType(((WildcardType)resolvedType.getType()).getUpperBounds()[0]);
+            } else if (resolvableType.getRawClass() != null) {
+                type = resolvableType.getRawClass();
             }
         }
+
         return (type instanceof Class<?>) ? (Class<?>) type : null;
     }
 
