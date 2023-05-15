@@ -417,17 +417,24 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
      */
     protected Class<?> getRawType(Type type) {
         if (type instanceof TypeVariable) {
-            throw new RuntimeException("不能有未确认的泛型变量");
-        } else if (type instanceof ParameterizedType) {
+            // throw new RuntimeException("不能有未确认的泛型变量");
+            return null;
+        } else if (type instanceof ParameterizedType || type instanceof WildcardType) {
             ResolvableType resolvedType = ResolvableType.forType(type);
             if (resolvedType.hasUnresolvableGenerics()) {
-                throw new RuntimeException("不能有未解析的泛型参数");
+                // throw new RuntimeException("不能有未解析的泛型参数");
+                return null;
             }
 
             ResolvableType resolvableType = resolvedType.getGeneric();
-            if ((resolvableType instanceof TypeVariable) ||
-                    (resolvableType.getType() instanceof ParameterizedType)) {
+            if ((resolvableType instanceof TypeVariable) || (resolvableType.getType() instanceof ParameterizedType)) {
                 return getRawType(resolvableType.getType());
+            } else if (resolvableType.getType() instanceof WildcardType) {
+                return getRawType(((WildcardType)resolvableType.getType()).getUpperBounds()[0]);
+            } else if (resolvedType.getType() instanceof ParameterizedType) {
+                return getRawType(resolvedType.getType());
+            } else if (resolvedType.getType() instanceof WildcardType) {
+                return getRawType(((WildcardType)resolvedType.getType()).getUpperBounds()[0]);
             } else if (resolvableType.getRawClass() != null) {
                 type = resolvableType.getRawClass();
             }
@@ -445,11 +452,13 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
 
     public Field findJsonPackEntityField(Type type) {
         if (type instanceof TypeVariable) {
-            throw new RuntimeException("不能有未确认的泛型变量");
-        } else if (type instanceof ParameterizedType || type instanceof Class<?>) {
+            // throw new RuntimeException("不能有未确认的泛型变量");
+            return null;
+        } else if (type instanceof Class<?> || type instanceof ParameterizedType) {
             ResolvableType resolvedType = ResolvableType.forType(type);
             if (resolvedType.hasUnresolvableGenerics()) {
-                throw new RuntimeException("不能有未解析的泛型参数");
+                // throw new RuntimeException("不能有未解析的泛型参数");
+                return null;
             }
 
             List<ResolvableType> resolvableTypes;
@@ -461,7 +470,8 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
             for (ResolvableType resolvableType : resolvableTypes) {
                 Class<?> clazz = null;
                 if ((resolvableType instanceof TypeVariable) ||
-                        (resolvableType.getType() instanceof ParameterizedType)) {
+                        (resolvableType.getType() instanceof ParameterizedType) ||
+                        (resolvableType.getType() instanceof WildcardType)) {
                     clazz = getRawType(resolvableType.getType());
                 } else if (resolvableType.getRawClass() != null) {
                     clazz = resolvableType.getRawClass();

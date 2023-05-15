@@ -35,7 +35,7 @@ public class DemoController {
     private UserDomainService service;
 
     @PostMapping("/search")
-    public List<UserDto> search(@RequestBody UserQuery userQuery) {
+    public List<? extends UserDto> search(@RequestBody UserQuery userQuery) {
         log.info("查询参数：{}", userQuery);
 
         UserQueryVO vo = new UserQueryVO();
