@@ -1,6 +1,7 @@
 package com.cn.ey.demo.controller;
 
 import cn.hutool.core.lang.Chain;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.cn.ey.demo.controller.dto.BaseResponse;
 import com.cn.ey.demo.controller.dto.BaseResponseTest;
@@ -55,7 +56,7 @@ public class DemoController {
     }
 
     @PostMapping("/add")
-    public UserDto add(@RequestBody UserDto userDto) {
+    public <T extends UserDto> UserDto add(@RequestBody T userDto) {
         log.info("接收参数：{}", userDto);
 
         // 添加
@@ -71,7 +72,7 @@ public class DemoController {
     }
 
     @PostMapping("/batch")
-    public List<UserDto> batch(@RequestBody List<UserDto> userDtoList) {
+    public List<UserDto> batch(@RequestBody List<? extends UserDto> userDtoList) {
         log.info("接收参数：[{}]", userDtoList);
 
         List<UserBO> userBOList = userDtoList.stream().map(dto -> {
@@ -119,11 +120,11 @@ public class DemoController {
         Page<UserDto> objectPage = Page.<UserDto>of(page.getCurrent(), page.getSize(), 100L);
         objectPage.setRecords(dtoList);
 
-        return BaseResponse.<Page<UserDto>, String>success(objectPage, "操作成功");
+        return BaseResponse.success(objectPage, "操作成功");
     }
 
     @PostMapping("/response-search-test")
-    public BaseResponseTest<String, Page<UserDto>> responseSearchTest(@RequestBody UserQuery userQuery) {
+    public BaseResponseTest<String, IPage<? extends UserDto>> responseSearchTest(@RequestBody UserQuery userQuery) {
         log.info("查询参数：{}", userQuery);
 
         // 分页对象
@@ -147,7 +148,7 @@ public class DemoController {
         Page<UserDto> objectPage = Page.<UserDto>of(page.getCurrent(), page.getSize(), 100L);
         objectPage.setRecords(dtoList);
 
-        return BaseResponseTest.<String, Page<UserDto>>success(objectPage, "操作成功");
+        return BaseResponseTest.success(objectPage, "操作成功");
     }
 
     @PostMapping("/response-save")
@@ -167,14 +168,14 @@ public class DemoController {
     }
 
     @PostMapping("/page-query")
-    public BaseResponse<Page<UserDto>, String> pageQuery(@RequestBody BaseResponse<Page<UserDto>, String> query) {
+    public BaseResponse<Page<? extends UserDto>, String> pageQuery(@RequestBody BaseResponse<Page<? extends UserDto>, String> query) {
         log.info("query:" + query);
 
         return query;
     }
 
     @PostMapping("/batch-multi")
-    public List<List<List<UserDto>>> batchMulti(@RequestBody List<List<List<UserDto>>> userDtoList) {
+    public List<List<List<? extends UserDto>>> batchMulti(@RequestBody List<List<List<? extends UserDto>>> userDtoList) {
         log.info("接收参数：[{}]", userDtoList);
         return userDtoList;
     }

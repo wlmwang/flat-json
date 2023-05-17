@@ -433,15 +433,14 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
      */
     protected Class<?> getRawType(Type type) {
         if (type instanceof TypeVariable) {
-            // throw new RuntimeException("不能有未确认的泛型变量");
-            return null;
-        } else if (type instanceof ParameterizedType || type instanceof WildcardType) {
-            ResolvableType resolvedType = ResolvableType.forType(type);
-            if (resolvedType.hasUnresolvableGenerics()) {
-                // throw new RuntimeException("不能有未解析的泛型参数");
+            type = ResolvableType.forType(type).resolve();
+            if (type == null) {
+                // throw new RuntimeException("不能有未确认的泛型变量");
                 return null;
             }
-
+        }
+        if (type instanceof ParameterizedType || type instanceof WildcardType) {
+            ResolvableType resolvedType = ResolvableType.forType(type);
             ResolvableType resolvableType = resolvedType.getGeneric();
             if ((resolvableType instanceof TypeVariable) || (resolvableType.getType() instanceof ParameterizedType)) {
                 return getRawType(resolvableType.getType());
@@ -452,6 +451,8 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
                 return getRawType(wildcardType);
             } else if (resolvableType.getRawClass() != null) {
                 type = resolvableType.getRawClass();
+            } else if (resolvableType.resolve() != null) {
+                type = resolvableType.resolve();
             }
         }
 
@@ -467,15 +468,10 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
 
     public Field findJsonPackEntityField(Type type) {
         if (type instanceof TypeVariable) {
-            // throw new RuntimeException("不能有未确认的泛型变量");
-            return null;
-        } else if (type instanceof Class<?> || type instanceof ParameterizedType) {
+            type = ResolvableType.forType(type).resolve();
+        }
+        if (type instanceof Class<?> || type instanceof ParameterizedType) {
             ResolvableType resolvedType = ResolvableType.forType(type);
-            if (resolvedType.hasUnresolvableGenerics()) {
-                // throw new RuntimeException("不能有未解析的泛型参数");
-                return null;
-            }
-
             List<ResolvableType> resolvableTypes;
             if (type instanceof ParameterizedType) {
                 resolvableTypes = Arrays.asList(resolvedType.getGenerics());
@@ -490,6 +486,8 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
                     clazz = getRawType(resolvableType.getType());
                 } else if (resolvableType.getRawClass() != null) {
                     clazz = resolvableType.getRawClass();
+                } else if (resolvableType.resolve() != null) {
+                    clazz = resolvableType.resolve();
                 }
 
                 // FIXME 有缓存穿透风险
@@ -508,6 +506,7 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
                 }
             }
         }
+
         return null;
     }
 
