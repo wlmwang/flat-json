@@ -153,6 +153,11 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
     private Object readNode(ResolvableType resolvedType, Object object) throws IOException {
         Type rawType = null;
         Field jsonPackField = null;
+        if (resolvedType.resolve() != null && resolvedType.resolve().isInterface()) {
+            if (resolvedType.resolve().isAssignableFrom(object.getClass())) {
+                resolvedType = ResolvableType.forType(ResolvableType.forInstance(object).getType(), resolvedType);
+            }
+        }
         if (resolvedType.hasGenerics()) {
             for (ResolvableType resolvableType : resolvedType.getGenerics()) {
                 rawType = resolvableType.getType();
@@ -163,7 +168,10 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
                     } else {
                         continue;
                     }
+                } else if (rawType instanceof WildcardType) {
+                    rawType = ((WildcardType) rawType).getUpperBounds()[0];
                 }
+
                 if (resolvableType.hasGenerics()) {
                     rawType = resolvableType.getType();
                 } else {
@@ -252,17 +260,25 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
     private Object writeNode(ResolvableType resolvedType, Object object) throws IOException {
         Type rawType = null;
         Field jsonPackField = null;
+        if (resolvedType.resolve() != null && resolvedType.resolve().isInterface()) {
+            if (resolvedType.resolve().isAssignableFrom(object.getClass())) {
+                resolvedType = ResolvableType.forType(ResolvableType.forInstance(object).getType(), resolvedType);
+            }
+        }
         if (resolvedType.hasGenerics()) {
             for (ResolvableType resolvableType : resolvedType.getGenerics()) {
                 rawType = resolvableType.getType();
-                if (rawType instanceof TypeVariable || rawType instanceof WildcardType) {
+                if (rawType instanceof TypeVariable) {
                     if (resolvedType.getRawClass() != null) {
                         // 处理泛型嵌套，比如 - List<List<List<JavaBean>>>
                         resolvedType = ResolvableType.forClassWithGenerics(resolvedType.getRawClass(), ResolvableType.forType(resolvedType.getGeneric().resolve()));
                     } else {
                         continue;
                     }
+                } else if (rawType instanceof WildcardType) {
+                    rawType = ((WildcardType) rawType).getUpperBounds()[0];
                 }
+
                 if (resolvableType.hasGenerics()) {
                     rawType = resolvableType.getType();
                 } else {
@@ -429,12 +445,11 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
             ResolvableType resolvableType = resolvedType.getGeneric();
             if ((resolvableType instanceof TypeVariable) || (resolvableType.getType() instanceof ParameterizedType)) {
                 return getRawType(resolvableType.getType());
-            } else if (resolvableType.getType() instanceof WildcardType) {
-                return getRawType(((WildcardType)resolvableType.getType()).getUpperBounds()[0]);
-            } else if (resolvedType.getType() instanceof ParameterizedType) {
-                return getRawType(resolvedType.getType());
-            } else if (resolvedType.getType() instanceof WildcardType) {
-                return getRawType(((WildcardType)resolvedType.getType()).getUpperBounds()[0]);
+            } else if ((resolvableType.getType() instanceof WildcardType) || (resolvedType.getType() instanceof WildcardType)) {
+                Type wildcardType = (resolvableType.getType() instanceof WildcardType) ?
+                        ((WildcardType) resolvableType.getType()).getUpperBounds()[0] :
+                        ((WildcardType) resolvedType.getType()).getUpperBounds()[0];
+                return getRawType(wildcardType);
             } else if (resolvableType.getRawClass() != null) {
                 type = resolvableType.getRawClass();
             }
