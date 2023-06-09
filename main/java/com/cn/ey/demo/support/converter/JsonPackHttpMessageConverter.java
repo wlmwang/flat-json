@@ -146,11 +146,16 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
         if (includeNonNullFlag) {
             defaultObjectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
         }
+
         super.writeInternal(objectNode != null? objectNode: object, type, outputMessage);
     }
 
     @SuppressWarnings("unchecked")
     private Object readNode(ResolvableType resolvedType, Object object) throws IOException {
+        if (object == null) {
+            return null;
+        }
+
         Type rawType = null;
         Field jsonPackField = null;
         if (resolvedType.resolve() != null && resolvedType.resolve().isInterface()) {
@@ -164,12 +169,12 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
                 if (rawType instanceof TypeVariable) {
                     if (resolvedType.getRawClass() != null) {
                         // 处理泛型嵌套，比如 - List<List<List<JavaBean>>>
-                        resolvedType = ResolvableType.forClassWithGenerics(resolvedType.getRawClass(), ResolvableType.forType(resolvedType.getGeneric().resolve()));
+                        if (resolvableType.hasGenerics()) {
+                            resolvedType = ResolvableType.forClassWithGenerics(resolvedType.getRawClass(), resolvableType);
+                        }
                     } else {
                         continue;
                     }
-                } else if (rawType instanceof WildcardType) {
-                    rawType = ((WildcardType) rawType).getUpperBounds()[0];
                 }
 
                 if (resolvableType.hasGenerics()) {
@@ -235,13 +240,13 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
                     Type fieldType = field.getGenericType();
                     if (fieldType instanceof ParameterizedType || fieldType instanceof TypeVariable) {
                         Object fieldValue = SystemMetaObject.forObject(objectMap).getValue(field.getName());
-                        BaseJsonNode jsonNode = (BaseJsonNode) readNode(ResolvableType.forField(field, resolvedType), fieldValue);
+                        Object jsonNode = readNode(ResolvableType.forField(field, resolvedType), fieldValue);
                         // 在当前字段中，递归泛型参数后，找到了打包字段
                         if (jsonNode != null) {
                             SystemMetaObject.forObject(objectMap).setValue(field.getName(), null);
                             JsonNode leftObject = defaultObjectMapper.readTree(defaultObjectMapper.writeValueAsString(objectMap));
                             ObjectNode leftNode = defaultObjectMapper.readValue(leftObject.toString(), ObjectNode.class);
-                            leftNode.replace(field.getName(), jsonNode);
+                            leftNode.replace(field.getName(), (BaseJsonNode) jsonNode);
                             SystemMetaObject.forObject(objectMap).setValue(field.getName(), fieldValue);
                             return leftNode;
                         }
@@ -258,6 +263,10 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
     }
 
     private Object writeNode(ResolvableType resolvedType, Object object) throws IOException {
+        if (object == null) {
+            return null;
+        }
+
         Type rawType = null;
         Field jsonPackField = null;
         if (resolvedType.resolve() != null && resolvedType.resolve().isInterface()) {
@@ -271,12 +280,12 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
                 if (rawType instanceof TypeVariable) {
                     if (resolvedType.getRawClass() != null) {
                         // 处理泛型嵌套，比如 - List<List<List<JavaBean>>>
-                        resolvedType = ResolvableType.forClassWithGenerics(resolvedType.getRawClass(), ResolvableType.forType(resolvedType.getGeneric().resolve()));
+                        if (resolvableType.hasGenerics()) {
+                            resolvedType = ResolvableType.forClassWithGenerics(resolvedType.getRawClass(), resolvableType);
+                        }
                     } else {
                         continue;
                     }
-                } else if (rawType instanceof WildcardType) {
-                    rawType = ((WildcardType) rawType).getUpperBounds()[0];
                 }
 
                 if (resolvableType.hasGenerics()) {
@@ -307,10 +316,17 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
             if (object instanceof BaseJsonNode) {
                 object = defaultObjectMapper.readValue(object.toString(), resolvedType.getRawClass());
             }
-            Class<?> clazz = ResolvableType.forInstance(object).getRawClass();
+
+            Class<?> clazz = resolvedType.getRawClass();
+            if (clazz == null && resolvedType.getType() instanceof TypeVariable) {
+                clazz = resolvedType.resolve();
+            } else if (clazz == null) {
+                clazz = ResolvableType.forInstance(object).getRawClass();
+            }
             if (clazz == null) {
                 return null;
             }
+
             if (List.class.isAssignableFrom(clazz)) {
                 object = defaultObjectMapper.readTree(defaultObjectMapper.writeValueAsString(object));
                 ArrayNode arrNode = defaultObjectMapper.readValue(object.toString(), ArrayNode.class);
@@ -330,13 +346,13 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
                     Type fieldType = field.getGenericType();
                     if (fieldType instanceof ParameterizedType || fieldType instanceof TypeVariable) {
                         Object fieldValue = SystemMetaObject.forObject(object).getValue(field.getName());
-                        BaseJsonNode jsonNode = (BaseJsonNode) writeNode(ResolvableType.forField(field, resolvedType), fieldValue);
+                        Object jsonNode = writeNode(ResolvableType.forField(field, resolvedType), fieldValue);
                         // 在当前字段中，递归泛型参数后，找到了打包字段
                         if (jsonNode != null) {
                             SystemMetaObject.forObject(object).setValue(field.getName(), null);
                             JsonNode leftObject = defaultObjectMapper.readTree(defaultObjectMapper.writeValueAsString(object));
                             ObjectNode leftNode = defaultObjectMapper.readValue(leftObject.toString(), ObjectNode.class);
-                            leftNode.replace(field.getName(), jsonNode);
+                            leftNode.replace(field.getName(), (BaseJsonNode) jsonNode);
                             SystemMetaObject.forObject(object).setValue(field.getName(), fieldValue);
                             return leftNode;
                         }
@@ -352,7 +368,111 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
         return object;
     }
 
+    private Object handleNode(ResolvableType resolvedType, Object object, OPT_ opt_) throws IOException {
+        Object node;
+        if (opt_ == OPT_.PACK) {
+            node = readNode(resolvedType, object);
+        } else {
+            node = writeNode(resolvedType, object);
+        }
+        return node;
+    }
+
     private ObjectNode parseNode(Class<?> clazz, ObjectNode jsonObject, OPT_ opt_) throws IOException {
+        // 递归处理类属性
+        Field[] fields = ReflectUtil.getFields(clazz);
+        if (Objects.nonNull(fields)) {
+            for (Field field : fields) {
+                Type fieldType = field.getGenericType();
+                if (fieldType instanceof ParameterizedType || fieldType instanceof TypeVariable) {
+                    fieldType = ResolvableType.forField(field, ResolvableType.forType(fieldType)).getType();
+                }
+                Field jsonPackField = findJsonPackEntityField(fieldType);
+                if (jsonPackField == null) {
+                    continue;
+                }
+
+                JsonNode jsonNode = jsonObject.path(field.getName());
+                if (jsonNode.isNull()) {
+                    continue;
+                }
+
+                ResolvableType resolvableType = ResolvableType.forField(field, ResolvableType.forType(fieldType));
+                if (resolvableType.hasGenerics()) {
+                    if (List.class.isAssignableFrom(field.getType())) {
+                        if (jsonNode.isArray()) {
+                            ArrayNode arrNode = (ArrayNode) jsonNode;
+                            ArrayNode newNode = defaultObjectMapper.createArrayNode();
+                            for (Iterator<JsonNode> elements = arrNode.elements(); elements.hasNext(); ) {
+                                JsonNode childNode = elements.next();
+                                if (childNode.isObject()) {
+                                    newNode.add(parseNode(getRawType(fieldType), (ObjectNode) defaultObjectMapper.readValue(childNode.toString(), JsonNode.class), opt_));
+                                } else {
+                                    newNode.add((BaseJsonNode) handleNode(ResolvableType.forType(fieldType), childNode, opt_));
+                                }
+                            }
+                            jsonObject.replace(field.getName(), newNode);
+                        }
+                    } else if (Map.class.isAssignableFrom(field.getType())) {
+                        if (jsonNode.isObject()) {
+                            // ResolvableType keyResolvableType = resolvableType.getGeneric(0);
+                            ResolvableType valueResolvableType = resolvableType.getGeneric(1);
+                            ObjectNode packNode = defaultObjectMapper.createObjectNode();
+                            for (Iterator<String> it = jsonNode.fieldNames(); it.hasNext(); ) {
+                                String filedName = it.next();
+                                JsonNode fieldNode = jsonNode.path(filedName);
+                                if (fieldNode.isArray()) {
+                                    ArrayNode arrNode = (ArrayNode) fieldNode;
+                                    ArrayNode newNode = defaultObjectMapper.createArrayNode();
+                                    for (Iterator<JsonNode> elements = arrNode.elements(); elements.hasNext(); ) {
+                                        JsonNode childNode = elements.next();
+                                        if (childNode.isObject()) {
+                                            newNode.add(parseNode(getRawType(valueResolvableType.getType()), (ObjectNode) defaultObjectMapper.readValue(childNode.toString(), JsonNode.class), opt_));
+                                        } else {
+                                            newNode.add((BaseJsonNode) handleNode(valueResolvableType, childNode, opt_));
+                                        }
+                                    }
+                                    packNode.putIfAbsent(filedName, newNode);
+                                } else if (fieldNode.isObject()) {
+                                    ObjectNode childNode = parseNode(getRawType(valueResolvableType.getType()), (ObjectNode) defaultObjectMapper.readValue(fieldNode.toString(), JsonNode.class), opt_);
+                                    packNode.putIfAbsent(filedName, childNode);
+                                }
+                                it.remove();
+                            }
+                            jsonObject.replace(field.getName(), packNode);
+                        }
+                    } else {
+                        if (jsonNode.isObject()) {
+                            Map<String, Object> objectMap = defaultObjectMapper.readValue(jsonNode.toString(), new TypeReference<Map<String, Object>>() {});
+                            Field[] propertyFields = ReflectUtil.getFields(field.getType());
+                            for (Field propertyField : propertyFields) {
+                                Type propertyFieldType = propertyField.getGenericType();
+                                if (propertyFieldType instanceof ParameterizedType || propertyFieldType instanceof TypeVariable) {
+                                    Object propertyFieldValue = SystemMetaObject.forObject(objectMap).getValue(propertyField.getName());
+                                    Object childNode = handleNode(ResolvableType.forField(propertyField, ResolvableType.forType(fieldType)), propertyFieldValue, opt_);
+                                    // 在当前字段中，递归泛型参数后，找到了打包字段
+                                    if (childNode != null) {
+                                        if (!(childNode instanceof JsonNode)) {
+                                            childNode = defaultObjectMapper.readTree(defaultObjectMapper.writeValueAsString(childNode));
+                                        }
+                                        SystemMetaObject.forObject(objectMap).setValue(propertyField.getName(), null);
+                                        JsonNode leftObject = defaultObjectMapper.readTree(defaultObjectMapper.writeValueAsString(objectMap));
+                                        ObjectNode leftNode = defaultObjectMapper.readValue(leftObject.toString(), ObjectNode.class);
+                                        leftNode.replace(propertyField.getName(), (BaseJsonNode) childNode);
+                                        SystemMetaObject.forObject(objectMap).setValue(propertyField.getName(), propertyFieldValue);
+                                        jsonObject.replace(field.getName(), leftNode);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    jsonObject.replace(field.getName(), parseNode(getRawType(fieldType), (ObjectNode) jsonNode, opt_));
+                }
+            }
+        }
+
+
         Field jsonPackField = findJsonPackEntityField(clazz);
         if (jsonPackField == null) {
             return jsonObject;
@@ -369,7 +489,7 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
             for (Iterator<String> it = jsonObject.fieldNames(); it.hasNext(); ) {
                 String filedName = it.next();
                 if (!normalFiledNames.containsKey(filedName)) {
-                    JsonNode fieldNode = jsonObject.get(filedName);
+                    JsonNode fieldNode = jsonObject.path(filedName);
                     if (fieldNode.isArray()) {
                         ArrayNode arrNode = defaultObjectMapper.createArrayNode();
                         for (Iterator<JsonNode> elements = fieldNode.elements(); elements.hasNext();) {
