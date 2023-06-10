@@ -263,6 +263,13 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
         return object;
     }
 
+    private ResolvableType wrapperResolvableType(ResolvableType resolvedType) {
+        if (!resolvedType.hasGenerics()) {
+            return resolvedType;
+        }
+        return ResolvableType.forClassWithGenerics(Objects.requireNonNull(resolvedType.resolve()), wrapperResolvableType(resolvedType.getGeneric()));
+    }
+
     private Object writeNode(ResolvableType resolvedType, Object object) throws IOException {
         if (object == null) {
             return null;
@@ -278,26 +285,11 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
         if (resolvedType.hasGenerics()) {
             // 遍历多泛型参数
             for (ResolvableType resolvableType : resolvedType.getGenerics()) {
+                // 遍历嵌套泛型
+                resolvableType = wrapperResolvableType(resolvableType);
                 rawType = resolvableType.getType();
-                if (rawType instanceof TypeVariable) {
-                    if (resolvedType.getRawClass() != null) {
-                        // 处理泛型嵌套，比如 - List<List<List<JavaBean>>>
-                        if (resolvableType.hasGenerics()) {
-                            resolvedType = ResolvableType.forClassWithGenerics(resolvedType.getRawClass(), resolvableType);
-                        }
-                    } else {
-                        continue;
-                    }
-                }
-
-                if (resolvableType.hasGenerics()) {
-                    rawType = resolvableType.getType();
-                } else {
-                    rawType = resolvableType.getType();
-                    if (rawType instanceof TypeVariable || rawType instanceof WildcardType) {
-                        // 处理泛型嵌套，比如 - List<List<List<JavaBean>>>
-                        rawType = resolvableType.resolve();
-                    }
+                if (rawType instanceof TypeVariable || rawType instanceof WildcardType) {
+                    rawType = resolvableType.resolve();
                 }
                 jsonPackField = findJsonPackEntityField(rawType);
                 if (jsonPackField != null) {
@@ -589,7 +581,7 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
     }
 
     public Field findJsonPackEntityField(Type type) {
-        if (type instanceof TypeVariable) {
+        if (type instanceof TypeVariable || type instanceof WildcardType) {
             type = ResolvableType.forType(type).resolve();
         }
         if (type instanceof Class<?> || type instanceof ParameterizedType) {
