@@ -1,6 +1,5 @@
 package com.cn.ey.demo.controller;
 
-import cn.hutool.core.lang.Chain;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.cn.ey.demo.controller.dto.BaseResponse;
@@ -12,9 +11,6 @@ import com.cn.ey.demo.domain.user.valueobject.UserQueryVO;
 import com.cn.ey.demo.controller.dto.UserQuery;
 import com.cn.ey.demo.support.converter.JsonPackHttpMessageConverters;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.ibatis.reflection.MetaClass;
-import org.apache.ibatis.reflection.MetaObject;
-import org.apache.ibatis.reflection.SystemMetaObject;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.propertyeditors.PropertiesEditor;
@@ -35,6 +31,13 @@ public class DemoController {
     @Autowired
     private UserDomainService service;
 
+    @PostMapping("/search-a")
+    public UserDto searchA(@RequestBody UserQuery userQuery) {
+        List<UserDto> userDtoList = (List<UserDto>) search(userQuery);
+
+        return userDtoList.get(0);
+    }
+
     @PostMapping("/search")
     public List<? extends UserDto> search(@RequestBody UserQuery userQuery) {
         log.info("查询参数：{}", userQuery);
@@ -51,6 +54,26 @@ public class DemoController {
         return userBOList.stream().map(bo -> {
             UserDto dto = new UserDto();
             BeanUtils.copyProperties(bo, dto);
+
+            UserDto c = new UserDto();
+            c.setId(101L);
+            c.setName("xxx");
+            c.setExtension(dto.getExtension());
+            // dto.setChildren(c);
+            // dto.setChildren(Collections.singletonList(c));
+            // dto.setChildren(Collections.singletonList(Collections.singletonList(Collections.singletonList(c))));
+            /*dto.setChildren(new HashMap<>() {{
+                put("ccc", Collections.singletonList(Collections.singletonList(c)));
+            }});*/
+
+            Page<List<UserDto>> page = new Page<>(1L, 10L, false);
+            Page<List<UserDto>> objectPage = Page.<List<UserDto>>of(page.getCurrent(), page.getSize(), 100L);
+            objectPage.setRecords(Collections.singletonList(Collections.singletonList(c)));
+            //dto.setChildren(objectPage);
+
+            // dto.setChildren(BaseResponse.success("zzz", (Collections.singletonList(objectPage))));
+            dto.setChildren(BaseResponse.success("zzz", Collections.singletonList(Collections.singletonList(objectPage))));
+
             return dto;
         }).collect(Collectors.toList());
     }
@@ -164,7 +187,7 @@ public class DemoController {
 
         UserDto dto = new UserDto();
         BeanUtils.copyProperties(userBO, dto);
-        return BaseResponse.success(dto);
+        return BaseResponse.success(userDto);
     }
 
     @PostMapping("/page-query")
@@ -184,6 +207,8 @@ public class DemoController {
     public UserDto mix(@PathVariable("id") String id, @RequestBody UserDto userDto) {
         log.info("接收参数：{}, [{}]", id, userDto);
 
+        UserDto dto = new UserDto();
+        dto.setExtension(userDto.getExtension());
         return userDto;
     }
 

@@ -242,7 +242,6 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
         } else {
             JsonNode leftObject = defaultObjectMapper.readTree(defaultObjectMapper.writeValueAsString(object));
             ObjectNode leftNode = defaultObjectMapper.readValue(leftObject.toString(), ObjectNode.class);
-            // object = parseNode(getRawType(rawType), leftNode, OPT_.PACK);
             object = parseNode(ResolvableType.forType(rawType), leftNode, OPT_.PACK);
         }
 
