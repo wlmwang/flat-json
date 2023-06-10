@@ -166,26 +166,11 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
         if (resolvedType.hasGenerics()) {
             // 遍历多泛型参数
             for (ResolvableType resolvableType : resolvedType.getGenerics()) {
+                // 遍历嵌套泛型
+                resolvableType = wrapperResolvableType(resolvableType);
                 rawType = resolvableType.getType();
-                if (rawType instanceof TypeVariable) {
-                    if (resolvedType.getRawClass() != null) {
-                        // 处理泛型嵌套，比如 - List<List<List<JavaBean>>>
-                        if (resolvableType.hasGenerics()) {
-                            resolvedType = ResolvableType.forClassWithGenerics(resolvedType.getRawClass(), resolvableType);
-                        }
-                    } else {
-                        continue;
-                    }
-                }
-
-                if (resolvableType.hasGenerics()) {
-                    rawType = resolvableType.getType();
-                } else {
-                    rawType = resolvableType.getType();
-                    if (rawType instanceof TypeVariable || rawType instanceof WildcardType) {
-                        // 处理泛型嵌套，比如 - List<List<List<JavaBean>>>
-                        rawType = resolvableType.resolve();
-                    }
+                if (rawType instanceof TypeVariable || rawType instanceof WildcardType) {
+                    rawType = resolvableType.resolve();
                 }
                 jsonPackField = findJsonPackEntityField(rawType);
                 if (jsonPackField != null) {
@@ -222,9 +207,9 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
                 for (Iterator<JsonNode> elements = arrNode.elements(); elements.hasNext(); ) {
                     JsonNode jsonNode = elements.next();
                     if (jsonNode.isObject()) {
-                        newNode.add(parseNode(getRawType(resolvedType.getType()), (ObjectNode) defaultObjectMapper.readValue(jsonNode.toString(), JsonNode.class), OPT_.PACK));
+                        newNode.add(parseNode(ResolvableType.forType(rawType), (ObjectNode) defaultObjectMapper.readValue(jsonNode.toString(), JsonNode.class), OPT_.PACK));
                     } else {
-                        newNode.add((BaseJsonNode) readNode(resolvedType.getGeneric(), jsonNode));
+                        newNode.add((BaseJsonNode) readNode(ResolvableType.forType(rawType), jsonNode));
                     }
                 }
                 object = newNode;
@@ -257,7 +242,8 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
         } else {
             JsonNode leftObject = defaultObjectMapper.readTree(defaultObjectMapper.writeValueAsString(object));
             ObjectNode leftNode = defaultObjectMapper.readValue(leftObject.toString(), ObjectNode.class);
-            object = parseNode(getRawType(rawType), leftNode, OPT_.PACK);
+            // object = parseNode(getRawType(rawType), leftNode, OPT_.PACK);
+            object = parseNode(ResolvableType.forType(rawType), leftNode, OPT_.PACK);
         }
 
         return object;
@@ -286,8 +272,7 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
             // 遍历多泛型参数
             for (ResolvableType resolvableType : resolvedType.getGenerics()) {
                 // 遍历嵌套泛型
-                resolvableType = wrapperResolvableType(resolvableType);
-                rawType = resolvableType.getType();
+                rawType = wrapperResolvableType(resolvableType).getType();
                 if (rawType instanceof TypeVariable || rawType instanceof WildcardType) {
                     rawType = resolvableType.resolve();
                 }
@@ -328,7 +313,7 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
                 for (Iterator<JsonNode> elements = arrNode.elements(); elements.hasNext(); ) {
                     JsonNode jsonNode = elements.next();
                     if (jsonNode.isObject()) {
-                        newNode.add(parseNode(getRawType(rawType), (ObjectNode) defaultObjectMapper.readValue(jsonNode.toString(), JsonNode.class), OPT_.UNPACK));
+                        newNode.add(parseNode(ResolvableType.forType(rawType), (ObjectNode) defaultObjectMapper.readValue(jsonNode.toString(), JsonNode.class), OPT_.UNPACK));
                     } else {
                         newNode.add((BaseJsonNode) writeNode(ResolvableType.forType(rawType), jsonNode));
                     }
@@ -356,7 +341,7 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
         } else {
             JsonNode leftObject = defaultObjectMapper.readTree(defaultObjectMapper.writeValueAsString(object));
             ObjectNode leftNode = defaultObjectMapper.readValue(leftObject.toString(), ObjectNode.class);
-            object = parseNode(getRawType(rawType), leftNode, OPT_.UNPACK);
+            object = parseNode(ResolvableType.forType(rawType), leftNode, OPT_.UNPACK);
         }
 
         return object;
@@ -373,13 +358,25 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
     }
 
     private ObjectNode parseNode(Class<?> clazz, ObjectNode jsonObject, OPT_ opt_) throws IOException {
+        return parseNode(ResolvableType.forType(clazz), jsonObject, opt_);
+    }
+
+    private ObjectNode parseNode(ResolvableType resolvedType, ObjectNode jsonObject, OPT_ opt_) throws IOException {
         // 递归处理类属性
+        Class<?> clazz = resolvedType.resolve();
         Field[] fields = ReflectUtil.getFields(clazz);
         if (Objects.nonNull(fields)) {
             for (Field field : fields) {
                 Type fieldType = field.getGenericType();
                 if (fieldType instanceof ParameterizedType || fieldType instanceof TypeVariable) {
-                    fieldType = ResolvableType.forField(field, ResolvableType.forType(fieldType)).getType();
+                    ResolvableType resolvableType = ResolvableType.forField(field, ResolvableType.forType(fieldType));
+                    for (ResolvableType rt : resolvableType.getGenerics()) {
+                        if (rt.getType() instanceof TypeVariable || rt.getType() instanceof WildcardType) {
+                            resolvableType = ResolvableType.forClassWithGenerics(Objects.requireNonNull(resolvableType.resolve()), resolvedType.getGeneric());
+                            break;
+                        }
+                    }
+                    fieldType = resolvableType.getType();
                 }
                 Field jsonPackField = findJsonPackEntityField(fieldType);
                 if (jsonPackField == null) {
@@ -391,7 +388,7 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
                     continue;
                 }
 
-                ResolvableType resolvableType = ResolvableType.forField(field, ResolvableType.forType(fieldType));
+                ResolvableType resolvableType = ResolvableType.forType(fieldType);
                 if (resolvableType.hasGenerics()) {
                     if (List.class.isAssignableFrom(field.getType())) {
                         if (jsonNode.isArray()) {
@@ -402,7 +399,7 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
                                 if (childNode.isObject()) {
                                     newNode.add(parseNode(getRawType(fieldType), (ObjectNode) defaultObjectMapper.readValue(childNode.toString(), JsonNode.class), opt_));
                                 } else {
-                                    newNode.add((BaseJsonNode) handleNode(ResolvableType.forType(fieldType), childNode, opt_));
+                                    newNode.add((BaseJsonNode) handleNode(ResolvableType.forType(fieldType).getGeneric(), childNode, opt_));
                                 }
                             }
                             jsonObject.replace(field.getName(), newNode);
@@ -465,7 +462,6 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
                 }
             }
         }
-
 
         Field jsonPackField = findJsonPackEntityField(clazz);
         if (jsonPackField == null) {
@@ -539,7 +535,6 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
 
         return jsonObject;
     }
-
     /**
      * getRawType(new TypeReference<List<JavaBean>>(){}.getType()) ---> JavaBean.class
      * @param type
