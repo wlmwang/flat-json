@@ -167,7 +167,7 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
             // 遍历多泛型参数
             for (ResolvableType resolvableType : resolvedType.getGenerics()) {
                 // 遍历嵌套泛型
-                resolvableType = wrapperResolvableType(resolvableType);
+                resolvableType = wrapperType(resolvableType);
                 rawType = resolvableType.getType();
                 if (rawType instanceof TypeVariable || rawType instanceof WildcardType) {
                     rawType = resolvableType.resolve();
@@ -248,13 +248,6 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
         return object;
     }
 
-    private ResolvableType wrapperResolvableType(ResolvableType resolvedType) {
-        if (!resolvedType.hasGenerics()) {
-            return resolvedType;
-        }
-        return ResolvableType.forClassWithGenerics(Objects.requireNonNull(resolvedType.resolve()), wrapperResolvableType(resolvedType.getGeneric()));
-    }
-
     private Object writeNode(ResolvableType resolvedType, Object object) throws IOException {
         if (object == null) {
             return null;
@@ -271,7 +264,7 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
             // 遍历多泛型参数
             for (ResolvableType resolvableType : resolvedType.getGenerics()) {
                 // 遍历嵌套泛型
-                rawType = wrapperResolvableType(resolvableType).getType();
+                rawType = wrapperType(resolvableType).getType();
                 if (rawType instanceof TypeVariable || rawType instanceof WildcardType) {
                     rawType = resolvableType.resolve();
                 }
@@ -344,16 +337,6 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
         }
 
         return object;
-    }
-
-    private Object handleNode(ResolvableType resolvedType, Object object, OPT_ opt_) throws IOException {
-        Object node;
-        if (opt_ == OPT_.PACK) {
-            node = readNode(resolvedType, object);
-        } else {
-            node = writeNode(resolvedType, object);
-        }
-        return node;
     }
 
     private ObjectNode parseNode(Class<?> clazz, ObjectNode jsonObject, OPT_ opt_) throws IOException {
@@ -534,6 +517,24 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
 
         return jsonObject;
     }
+
+    private Object handleNode(ResolvableType resolvedType, Object object, OPT_ opt_) throws IOException {
+        Object node;
+        if (opt_ == OPT_.PACK) {
+            node = readNode(resolvedType, object);
+        } else {
+            node = writeNode(resolvedType, object);
+        }
+        return node;
+    }
+
+    private ResolvableType wrapperType(ResolvableType resolvedType) {
+        if (!resolvedType.hasGenerics()) {
+            return resolvedType;
+        }
+        return ResolvableType.forClassWithGenerics(Objects.requireNonNull(resolvedType.resolve()), wrapperType(resolvedType.getGeneric()));
+    }
+
     /**
      * getRawType(new TypeReference<List<JavaBean>>(){}.getType()) ---> JavaBean.class
      * @param type
