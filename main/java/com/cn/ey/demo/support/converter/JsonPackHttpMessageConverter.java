@@ -158,12 +158,13 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
 
         Type rawType = null;
         Field jsonPackField = null;
-        if (resolvedType.resolve() != null && resolvedType.resolve().isInterface()) {
-            if (resolvedType.resolve().isAssignableFrom(object.getClass())) {
+        if (resolvedType.resolve() != null && Objects.requireNonNull(resolvedType.resolve()).isInterface()) {
+            if (Objects.requireNonNull(resolvedType.resolve()).isAssignableFrom(object.getClass())) {
                 resolvedType = ResolvableType.forType(ResolvableType.forInstance(object).getType(), resolvedType);
             }
         }
         if (resolvedType.hasGenerics()) {
+            // 遍历多泛型参数
             for (ResolvableType resolvableType : resolvedType.getGenerics()) {
                 rawType = resolvableType.getType();
                 if (rawType instanceof TypeVariable) {
@@ -269,12 +270,13 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
 
         Type rawType = null;
         Field jsonPackField = null;
-        if (resolvedType.resolve() != null && resolvedType.resolve().isInterface()) {
-            if (resolvedType.resolve().isAssignableFrom(object.getClass())) {
+        if (resolvedType.resolve() != null && Objects.requireNonNull(resolvedType.resolve()).isInterface()) {
+            if (Objects.requireNonNull(resolvedType.resolve()).isAssignableFrom(object.getClass())) {
                 resolvedType = ResolvableType.forType(ResolvableType.forInstance(object).getType(), resolvedType);
             }
         }
         if (resolvedType.hasGenerics()) {
+            // 遍历多泛型参数
             for (ResolvableType resolvableType : resolvedType.getGenerics()) {
                 rawType = resolvableType.getType();
                 if (rawType instanceof TypeVariable) {
