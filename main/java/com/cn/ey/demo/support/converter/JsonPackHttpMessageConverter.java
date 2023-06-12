@@ -453,7 +453,7 @@ public class JsonPackHttpMessageConverter extends MappingJackson2HttpMessageConv
         // 普通字段（没有@JsonPackEntity注解的字段）
         Map<String, Field> normalFiledNames = Arrays.stream(ReflectUtil.getFields(clazz)).filter(
                 field ->  !jsonPackField.getName().equals(field.getName())
-        ).collect(Collectors.toMap(Field::getName, v -> v));
+        ).collect(Collectors.toMap(Field::getName, v -> v, (existValue, newValue) -> newValue));
 
         if (opt_ == OPT_.PACK) {
             // 将请求数据，打包到方法接收参数为@JsonPackEntity字段中
